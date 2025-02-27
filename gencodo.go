@@ -2,7 +2,6 @@ package gencodo
 
 import (
 	"bytes"
-	"embed"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,10 +13,6 @@ import (
 	"github.com/spf13/pflag"
 )
 
-//go:embed cli.tmpl command.tmpl
-var templates embed.FS
-
-// FlagDetail holds details about a flag
 type FlagDetail struct {
 	Name         string
 	Usage        string
@@ -29,12 +24,16 @@ type ExampleDetail struct {
 	Usage string
 }
 
-// GenReSTCustom creates custom reStructured Text output with the specified formatting.
-func GenReSTCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string, string) string) error {
+type TemplateDetail struct {
+	IndexFileName         string
+	IndexTemplate         string
+	SingleCommandTemplate string
+}
+
+func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, linkHandler func(string, string) string) error {
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
 
-	// Prepare data for the template
 	name := cmd.CommandPath()
 
 	short := cmd.Short
@@ -44,10 +43,8 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string, str
 	}
 	ref := "ref_" + strings.ReplaceAll(name, " ", "_")
 
-	// Compute the heading separator
 	headinglen := len(name)
 
-	// Break down examples for further formatting
 	entries := strings.Split(cmd.Example, "\n\n")
 	var structuredExamples []ExampleDetail
 
@@ -73,7 +70,6 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string, str
 		}
 	}
 
-	// Collect flag details
 	flags := cmd.NonInheritedFlags()
 	var flagDetails []FlagDetail
 	flags.VisitAll(func(flag *pflag.Flag) {
@@ -84,7 +80,6 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string, str
 		})
 	})
 
-	// Prepare the template data
 	data := struct {
 		Ref         string
 		CommandName string
@@ -105,7 +100,6 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string, str
 		HeadingLen:  headinglen,
 	}
 
-	// Define the helper functions
 	funcMap := template.FuncMap{
 		"indent": func(spaces int, ss ...string) string {
 			padding := strings.Repeat(" ", spaces)
@@ -118,18 +112,11 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string, str
 		"repeat": strings.Repeat,
 	}
 
-	// Read and parse the template
-	tmplContent, err := templates.ReadFile("command.tmpl")
+	tmpl, err := template.New("command").Funcs(funcMap).Parse(templateContent)
 	if err != nil {
 		return err
 	}
 
-	tmpl, err := template.New("command").Funcs(funcMap).Parse(string(tmplContent))
-	if err != nil {
-		return err
-	}
-
-	// Render the template
 	buf := new(bytes.Buffer)
 	if err = tmpl.Execute(buf, data); err != nil {
 		return err
@@ -139,25 +126,27 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string, str
 	return err
 }
 
-// GenReSTTreeCustom generates RST documentation and creates an index.rst file using a template.
-func GenReSTTreeCustom(cmd *cobra.Command, dir string, filePrepender func(string) string, linkHandler func(string, string) string) error {
+func GenReSTTreeCustom(
+	cmd *cobra.Command,
+	dir string,
+	templates TemplateDetail,
+	filePrepender func(string) string,
+	linkHandler func(string, string) string,
+) error {
 	var files []string
 
-	// Recursive function to generate documentation for each command
 	var generateDocs func(*cobra.Command) error
 	generateDocs = func(c *cobra.Command) error {
 		if !c.IsAvailableCommand() || c.IsAdditionalHelpTopicCommand() {
 			return nil
 		}
 
-		// Generate docs for subcommands
 		for _, subCmd := range c.Commands() {
 			if err := generateDocs(subCmd); err != nil {
 				return err
 			}
 		}
 
-		// Generate RST file for the command
 		basename := strings.ReplaceAll(c.CommandPath(), " ", "-") + ".rst"
 		filename := filepath.Join(dir, basename)
 		f, err := os.Create(filename)
@@ -169,45 +158,34 @@ func GenReSTTreeCustom(cmd *cobra.Command, dir string, filePrepender func(string
 		if _, err := io.WriteString(f, filePrepender(filename)); err != nil {
 			return err
 		}
-		if err := GenReSTCustom(c, f, linkHandler); err != nil {
+		if err := GenReSTCustom(c, f, templates.SingleCommandTemplate, linkHandler); err != nil {
 			return err
 		}
 
-		// Track generated files for index
 		files = append(files, basename)
 		return nil
 	}
 
-	// Generate docs for subcommands only
 	for _, subCmd := range cmd.Commands() {
 		if err := generateDocs(subCmd); err != nil {
 			return err
 		}
 	}
 
-	// Sort the RST files in alphabetical order
 	sort.Strings(files)
 
-	// Prepare data for the index template
 	data := struct {
 		Files []string
 	}{
 		Files: files,
 	}
 
-	// Read and parse the template
-	templateContent, err := templates.ReadFile("cli.tmpl")
+	tmpl, err := template.New("index").Parse(templates.IndexTemplate)
 	if err != nil {
 		return err
 	}
 
-	tmpl, err := template.New("index").Parse(string(templateContent))
-	if err != nil {
-		return err
-	}
-
-	// Create and write the myproject.rst file
-	indexPath := filepath.Join(dir, "myproject.rst")
+	indexPath := filepath.Join(dir, templates.IndexFileName)
 	indexFile, err := os.Create(indexPath)
 	if err != nil {
 		return err
