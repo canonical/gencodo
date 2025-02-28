@@ -151,3 +151,42 @@ func TestGenReSTTreeCustomNested(t *testing.T) {
 		t.Errorf("unexpected files: %v", names)
 	}
 }
+
+
+func TestCommandAnnotations(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "testcmd",
+		Short: "Command for testing annotations",
+		Annotations: map[string]string{
+			"related": "foo,bar,baz",
+		},
+	}
+
+	related, exists := cmd.Annotations["related"]
+	if !exists {
+		t.Fatalf("expected related annotations, got none")
+	}
+
+	expected := []string{"foo", "bar", "baz"}
+	relatedList := strings.Split(related, ",")
+	for i, v := range relatedList {
+		relatedList[i] = strings.TrimSpace(v)
+	}
+
+	if len(expected) != len(relatedList) {
+		t.Fatalf("expected %d related commands, got %d", len(expected), len(relatedList))
+	}
+
+	for _, exp := range expected {
+		found := false
+		for _, rel := range relatedList {
+			if exp == rel {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected related command %s not found", exp)
+		}
+	}
+}

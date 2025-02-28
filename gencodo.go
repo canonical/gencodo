@@ -80,24 +80,35 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 		})
 	})
 
+	// Extract related commands from Annotations
+	relatedCommands := []string{}
+	if related, exists := cmd.Annotations["related"]; exists {
+		relatedCommands = strings.Split(related, ",")
+		for i, cmd := range relatedCommands {
+			relatedCommands[i] = strings.TrimSpace(cmd)
+		}
+	}
+
 	data := struct {
-		Ref         string
-		CommandName string
-		Short       string
-		Long        string
-		Synopsis    string
-		Examples    []ExampleDetail
-		Flags       []FlagDetail
-		HeadingLen  int
+		Ref             string
+		CommandName     string
+		Short           string
+		Long            string
+		Synopsis        string
+		Examples        []ExampleDetail
+		Flags           []FlagDetail
+		HeadingLen      int
+		RelatedCommands []string
 	}{
-		Ref:         ref,
-		CommandName: name,
-		Short:       short,
-		Long:        long,
-		Synopsis:    cmd.UseLine(),
-		Examples:    structuredExamples,
-		Flags:       flagDetails,
-		HeadingLen:  headinglen,
+		Ref:             ref,
+		CommandName:     name,
+		Short:           short,
+		Long:            long,
+		Synopsis:        cmd.UseLine(),
+		Examples:        structuredExamples,
+		Flags:           flagDetails,
+		HeadingLen:      headinglen,
+		RelatedCommands: relatedCommands,
 	}
 
 	funcMap := template.FuncMap{
@@ -110,6 +121,9 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 			return strings.Join(indentedStrings, "\n")
 		},
 		"repeat": strings.Repeat,
+	    "replaceSpaces": func(s string) string {
+		    return strings.ReplaceAll(s, " ", "_")
+	    },
 	}
 
 	tmpl, err := template.New("command").Funcs(funcMap).Parse(templateContent)
