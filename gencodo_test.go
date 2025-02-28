@@ -55,14 +55,17 @@ $ example foo
 
 Bar:
 $ example bar`,
+		Annotations: map[string]string{
+			"related": "foo bar,bar,baz",
+		},
 	}
 	var output bytes.Buffer
-	templateContent := `{{ .CommandName }}|{{ .Short }}|{{ .Long }}{{ range .Examples }}|{{ .Info }}|{{ .Usage }}{{ end }}`
+	templateContent := `{{ .CommandName }}|{{ .Short }}|{{ .Long }}{{ range .Examples }}|{{ .Info }}|{{ .Usage }}{{ end }}{{ range .RelatedCommands }}|{{ . | replaceSpaces }}{{ end }}`
 	err := GenReSTCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
 		t.Fatalf("GenReSTCustom failed: %v", err)
 	}
-	expected := "example|An example command|A longer description of the example command.|Foo:|$ example foo|Bar:|$ example bar"
+	expected := "example|An example command|A longer description of the example command.|Foo:|$ example foo|Bar:|$ example bar|foo_bar|bar|baz"
 	if output.String() != expected {
 		t.Errorf("expected:\n%s\ngot:\n%s", expected, output.String())
 	}
@@ -149,44 +152,5 @@ func TestGenReSTTreeCustomNested(t *testing.T) {
 	names := readDirNames(t, tempDir)
 	if !containsAll(names, []string{"top.rst", "top-A.rst", "top-A-A1.rst", "top-B.rst", "top-C.rst"}) {
 		t.Errorf("unexpected files: %v", names)
-	}
-}
-
-
-func TestCommandAnnotations(t *testing.T) {
-	cmd := &cobra.Command{
-		Use:   "testcmd",
-		Short: "Command for testing annotations",
-		Annotations: map[string]string{
-			"related": "foo,bar,baz",
-		},
-	}
-
-	related, exists := cmd.Annotations["related"]
-	if !exists {
-		t.Fatalf("expected related annotations, got none")
-	}
-
-	expected := []string{"foo", "bar", "baz"}
-	relatedList := strings.Split(related, ",")
-	for i, v := range relatedList {
-		relatedList[i] = strings.TrimSpace(v)
-	}
-
-	if len(expected) != len(relatedList) {
-		t.Fatalf("expected %d related commands, got %d", len(expected), len(relatedList))
-	}
-
-	for _, exp := range expected {
-		found := false
-		for _, rel := range relatedList {
-			if exp == rel {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("expected related command %s not found", exp)
-		}
 	}
 }
