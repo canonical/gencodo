@@ -35,19 +35,12 @@ gencodo.GenDocsTree(rootCmd, "docs", templates, filePrepender, linkHandler)
 - `filePrepender`: Function to prepend headers to files.
 - `linkHandler`: Function to handle internal links.
 
-## Example
+The arguments are in line with Cobra's own implementation: https://umarcor.github.io/cobra/#generating-restructured-text-docs-for-your-own-cobracommand
 
-If your CLI has a command structure like:
+## Examples
 
-```
-mycli
-├── command1
-│   ├── subcommand1
-│   └── subcommand2
-└── command2
-```
+See the example templates under `examples/`.
 
-Running `GenDocsTree` with the examples will generate documentation files for each command and an index file.
 
 ## Contributing
 
