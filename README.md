@@ -55,4 +55,4 @@ Contributions are welcome! Please submit a PR or open an issue for discussions.
 
 ## License
 
-LGPLv3
+[LGPLv3](https://www.gnu.org/licenses/lgpl-3.0.en.html#license-text)
