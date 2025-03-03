@@ -13,24 +13,28 @@ import (
 	"github.com/spf13/pflag"
 )
 
-type FlagDetail struct {
-	Name         string
-	Usage        string
-	DefaultValue string
+// FlagInfo holds metadata about a CLI flag.
+type FlagInfo struct {
+	Name         string // Flag name
+	Usage        string // Description of the flag
+	DefaultValue string // Default value of the flag
 }
 
-type ExampleDetail struct {
-	Info  string
-	Usage string
+// ExampleInfo represents an example usage of a command to be used in templates.
+type ExampleInfo struct {
+	Info  string // Description of the example
+	Usage string // Example command usage
 }
 
-type TemplateDetail struct {
-	IndexFileName         string
-	IndexTemplate         string
-	SingleCommandTemplate string
+// TemplateInfo stores templates used for documentation generation.
+type TemplateInfo struct {
+	IndexFileName         string // Name of the generated index file
+	IndexTemplate         string // Template for the index file
+	SingleCommandTemplate string // Template for individual command files
 }
 
-func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, linkHandler func(string, string) string) error {
+// GenDocsCustom generates docs for a single command in an eponymous file.
+func GenDocsCustom(cmd *cobra.Command, w io.Writer, templateContent string, linkHandler func(string, string) string) error {
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
 
@@ -46,7 +50,7 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 	headinglen := len(name)
 
 	entries := strings.Split(cmd.Example, "\n\n")
-	var structuredExamples []ExampleDetail
+	var structuredExamples []ExampleInfo
 
 	for _, entry := range entries {
 		entry = strings.TrimSpace(entry)
@@ -63,7 +67,7 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 		}
 
 		if len(infoLines) > 0 && len(usageLines) > 0 {
-			structuredExamples = append(structuredExamples, ExampleDetail{
+			structuredExamples = append(structuredExamples, ExampleInfo{
 				Info:  strings.Join(infoLines, "\n"),
 				Usage: strings.Join(usageLines, "\n"),
 			})
@@ -71,9 +75,9 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 	}
 
 	flags := cmd.NonInheritedFlags()
-	var flagDetails []FlagDetail
+	var FlagDetails []FlagInfo
 	flags.VisitAll(func(flag *pflag.Flag) {
-		flagDetails = append(flagDetails, FlagDetail{
+		FlagDetails = append(FlagDetails, FlagInfo{
 			Name:         flag.Name,
 			Usage:        flag.Usage,
 			DefaultValue: flag.DefValue,
@@ -95,9 +99,9 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 		Short           string
 		Long            string
 		Synopsis        string
-		Examples        []ExampleDetail
-		Flags           []FlagDetail
-		HeadingLen      int
+		Examples        []ExampleInfo
+		Flags           []FlagInfo
+		HeadingLen      int // CommandName length
 		RelatedCommands []string
 	}{
 		Ref:             ref,
@@ -106,11 +110,12 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 		Long:            long,
 		Synopsis:        cmd.UseLine(),
 		Examples:        structuredExamples,
-		Flags:           flagDetails,
+		Flags:           FlagDetails,
 		HeadingLen:      headinglen,
 		RelatedCommands: relatedCommands,
 	}
 
+	// Basic utility functions.
 	funcMap := template.FuncMap{
 		"indent": func(spaces int, ss ...string) string {
 			padding := strings.Repeat(" ", spaces)
@@ -121,9 +126,9 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 			return strings.Join(indentedStrings, "\n")
 		},
 		"repeat": strings.Repeat,
-	    "replaceSpaces": func(s string) string {
-		    return strings.ReplaceAll(s, " ", "_")
-	    },
+		"replaceSpaces": func(s string) string {
+			return strings.ReplaceAll(s, " ", "_")
+		},
 	}
 
 	tmpl, err := template.New("command").Funcs(funcMap).Parse(templateContent)
@@ -140,10 +145,11 @@ func GenReSTCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 	return err
 }
 
-func GenReSTTreeCustom(
+// GenDocsTreeCustom generates docs for a subcommand tree, skipping the root.
+func GenDocsTreeCustom(
 	cmd *cobra.Command,
 	dir string,
-	templates TemplateDetail,
+	templates TemplateInfo,
 	filePrepender func(string) string,
 	linkHandler func(string, string) string,
 ) error {
@@ -172,7 +178,7 @@ func GenReSTTreeCustom(
 		if _, err := io.WriteString(f, filePrepender(filename)); err != nil {
 			return err
 		}
-		if err := GenReSTCustom(c, f, templates.SingleCommandTemplate, linkHandler); err != nil {
+		if err := GenDocsCustom(c, f, templates.SingleCommandTemplate, linkHandler); err != nil {
 			return err
 		}
 

@@ -44,7 +44,7 @@ func containsAll(all []string, needed []string) bool {
 	return true
 }
 
-func TestGenReSTCustom(t *testing.T) {
+func TestGenDocsCustom(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "example",
 		Short: "An example command",
@@ -61,9 +61,9 @@ $ example bar`,
 	}
 	var output bytes.Buffer
 	templateContent := `{{ .CommandName }}|{{ .Short }}|{{ .Long }}{{ range .Examples }}|{{ .Info }}|{{ .Usage }}{{ end }}{{ range .RelatedCommands }}|{{ . | replaceSpaces }}{{ end }}`
-	err := GenReSTCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocsCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenReSTCustom failed: %v", err)
+		t.Fatalf("GenDocsCustom failed: %v", err)
 	}
 	expected := "example|An example command|A longer description of the example command.|Foo:|$ example foo|Bar:|$ example bar|foo_bar|bar|baz"
 	if output.String() != expected {
@@ -71,39 +71,39 @@ $ example bar`,
 	}
 }
 
-func TestGenReSTCustomEmptyExample(t *testing.T) {
+func TestGenDocsCustomEmptyExample(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "noexample",
 		Short: "No example command",
 	}
 	var output bytes.Buffer
 	templateContent := `{{ .CommandName }}|{{ .Short }}|{{ .Long }}|`
-	err := GenReSTCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocsCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenReSTCustom failed: %v", err)
+		t.Fatalf("GenDocsCustom failed: %v", err)
 	}
 	if !strings.Contains(output.String(), "noexample|No example command|No example command|") {
 		t.Errorf("unexpected output: %s", output.String())
 	}
 }
 
-func TestGenReSTCustomIndentRepeat(t *testing.T) {
+func TestGenDocsCustomIndentRepeat(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "indentrepeat",
 		Short: "Testing indent and repeat",
 	}
 	var output bytes.Buffer
 	templateContent := `{{ indent 2 .CommandName }}{{ repeat "X" 3 }}`
-	err := GenReSTCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocsCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenReSTCustom failed: %v", err)
+		t.Fatalf("GenDocsCustom failed: %v", err)
 	}
 	if !strings.Contains(output.String(), "  indentrepeatXXX") {
 		t.Errorf("unexpected template output: %s", output.String())
 	}
 }
 
-func TestGenReSTTreeCustom(t *testing.T) {
+func TestGenDocsTreeCustom(t *testing.T) {
 	tempDir := t.TempDir()
 	rootCmd := &cobra.Command{Use: "root"}
 	subCmd1 := &cobra.Command{
@@ -117,21 +117,21 @@ func TestGenReSTTreeCustom(t *testing.T) {
 		Run:   func(cmd *cobra.Command, args []string) {},
 	}
 	rootCmd.AddCommand(subCmd1, subCmd2)
-	templates := TemplateDetail{
+	templates := TemplateInfo{
 		IndexFileName:         "root.rst",
 		IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
 		SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
 	}
-	err := GenReSTTreeCustom(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocsTreeCustom(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenReSTTreeCustom failed: %v", err)
+		t.Fatalf("GenDocsTreeCustom failed: %v", err)
 	}
 	fileExists(t, filepath.Join(tempDir, "root.rst"))
 	fileExists(t, filepath.Join(tempDir, "root-sub1.rst"))
 	fileExists(t, filepath.Join(tempDir, "root-sub2.rst"))
 }
 
-func TestGenReSTTreeCustomNested(t *testing.T) {
+func TestGenDocsTreeCustomNested(t *testing.T) {
 	tempDir := t.TempDir()
 	rootCmd := &cobra.Command{Use: "top"}
 	subCmdA := &cobra.Command{Use: "A", Short: "A", Run: func(cmd *cobra.Command, args []string) {}}
@@ -140,14 +140,14 @@ func TestGenReSTTreeCustomNested(t *testing.T) {
 	subCmdA1 := &cobra.Command{Use: "A1", Short: "A1", Run: func(cmd *cobra.Command, args []string) {}}
 	subCmdA.AddCommand(subCmdA1)
 	rootCmd.AddCommand(subCmdA, subCmdB, subCmdC)
-	templates := TemplateDetail{
+	templates := TemplateInfo{
 		IndexFileName:         "top.rst",
 		IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
 		SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
 	}
-	err := GenReSTTreeCustom(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocsTreeCustom(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenReSTTreeCustom failed: %v", err)
+		t.Fatalf("GenDocsTreeCustom failed: %v", err)
 	}
 	names := readDirNames(t, tempDir)
 	if !containsAll(names, []string{"top.rst", "top-A.rst", "top-A-A1.rst", "top-B.rst", "top-C.rst"}) {
