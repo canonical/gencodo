@@ -44,7 +44,7 @@ func containsAll(all []string, needed []string) bool {
 	return true
 }
 
-func TestGenDocsCustom(t *testing.T) {
+func TestGenDocs(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "example",
 		Short: "An example command",
@@ -61,9 +61,9 @@ $ example bar`,
 	}
 	var output bytes.Buffer
 	templateContent := `{{ .CommandName }}|{{ .Short }}|{{ .Long }}{{ range .Examples }}|{{ .Info }}|{{ .Usage }}{{ end }}{{ range .RelatedCommands }}|{{ . | replaceSpaces }}{{ end }}`
-	err := GenDocsCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenDocsCustom failed: %v", err)
+		t.Fatalf("GenDocs failed: %v", err)
 	}
 	expected := "example|An example command|A longer description of the example command.|Foo:|$ example foo|Bar:|$ example bar|foo_bar|bar|baz"
 	if output.String() != expected {
@@ -71,39 +71,39 @@ $ example bar`,
 	}
 }
 
-func TestGenDocsCustomEmptyExample(t *testing.T) {
+func TestGenDocsEmptyExample(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "noexample",
 		Short: "No example command",
 	}
 	var output bytes.Buffer
 	templateContent := `{{ .CommandName }}|{{ .Short }}|{{ .Long }}|`
-	err := GenDocsCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenDocsCustom failed: %v", err)
+		t.Fatalf("GenDocs failed: %v", err)
 	}
 	if !strings.Contains(output.String(), "noexample|No example command|No example command|") {
 		t.Errorf("unexpected output: %s", output.String())
 	}
 }
 
-func TestGenDocsCustomIndentRepeat(t *testing.T) {
+func TestGenDocsIndentRepeat(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "indentrepeat",
 		Short: "Testing indent and repeat",
 	}
 	var output bytes.Buffer
 	templateContent := `{{ indent 2 .CommandName }}{{ repeat "X" 3 }}`
-	err := GenDocsCustom(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenDocsCustom failed: %v", err)
+		t.Fatalf("GenDocs failed: %v", err)
 	}
 	if !strings.Contains(output.String(), "  indentrepeatXXX") {
 		t.Errorf("unexpected template output: %s", output.String())
 	}
 }
 
-func TestGenDocsTreeCustom(t *testing.T) {
+func TestGenDocsTree(t *testing.T) {
 	tempDir := t.TempDir()
 	rootCmd := &cobra.Command{Use: "root"}
 	subCmd1 := &cobra.Command{
@@ -122,16 +122,16 @@ func TestGenDocsTreeCustom(t *testing.T) {
 		IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
 		SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
 	}
-	err := GenDocsTreeCustom(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenDocsTreeCustom failed: %v", err)
+		t.Fatalf("GenDocsTree failed: %v", err)
 	}
 	fileExists(t, filepath.Join(tempDir, "root.rst"))
 	fileExists(t, filepath.Join(tempDir, "root-sub1.rst"))
 	fileExists(t, filepath.Join(tempDir, "root-sub2.rst"))
 }
 
-func TestGenDocsTreeCustomNested(t *testing.T) {
+func TestGenDocsTreeNested(t *testing.T) {
 	tempDir := t.TempDir()
 	rootCmd := &cobra.Command{Use: "top"}
 	subCmdA := &cobra.Command{Use: "A", Short: "A", Run: func(cmd *cobra.Command, args []string) {}}
@@ -145,9 +145,9 @@ func TestGenDocsTreeCustomNested(t *testing.T) {
 		IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
 		SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
 	}
-	err := GenDocsTreeCustom(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenDocsTreeCustom failed: %v", err)
+		t.Fatalf("GenDocsTree failed: %v", err)
 	}
 	names := readDirNames(t, tempDir)
 	if !containsAll(names, []string{"top.rst", "top-A.rst", "top-A-A1.rst", "top-B.rst", "top-C.rst"}) {

@@ -33,8 +33,8 @@ type TemplateInfo struct {
 	SingleCommandTemplate string // Template for individual command files
 }
 
-// GenDocsCustom generates docs for a single command in an eponymous file.
-func GenDocsCustom(cmd *cobra.Command, w io.Writer, templateContent string, linkHandler func(string, string) string) error {
+// GenDocs generates docs for a single command in an eponymous file.
+func GenDocs(cmd *cobra.Command, w io.Writer, templateContent string, linkHandler func(string, string) string) error {
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
 
@@ -145,8 +145,8 @@ func GenDocsCustom(cmd *cobra.Command, w io.Writer, templateContent string, link
 	return err
 }
 
-// GenDocsTreeCustom generates docs for a subcommand tree, skipping the root.
-func GenDocsTreeCustom(
+// GenDocsTree generates docs for a subcommand tree, skipping the root.
+func GenDocsTree(
 	cmd *cobra.Command,
 	dir string,
 	templates TemplateInfo,
@@ -178,7 +178,7 @@ func GenDocsTreeCustom(
 		if _, err := io.WriteString(f, filePrepender(filename)); err != nil {
 			return err
 		}
-		if err := GenDocsCustom(c, f, templates.SingleCommandTemplate, linkHandler); err != nil {
+		if err := GenDocs(c, f, templates.SingleCommandTemplate, linkHandler); err != nil {
 			return err
 		}
 
