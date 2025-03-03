@@ -39,7 +39,7 @@ The arguments are in line with Cobra's own implementation: https://umarcor.githu
 
 ## Examples
 
-See the example templates under `examples/`.
+See the example templates under `examples/`; the invocation is covered in the test code.
 
 
 ## Contributing
