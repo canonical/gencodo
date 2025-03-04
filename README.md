@@ -6,7 +6,7 @@ It extracts command metadata, examples, and flags, formatting them into arbitrar
 ## Features
 
 - Automatically generates documentation for Cobra-based CLI commands.
-- Supports custom, format-agnostic templates for command documentation and index pages (see [Go templates](https://pkg.go.dev/text/template)).
+- Supports custom, format-agnostic templates for individual and index pages (see [Go templates](https://pkg.go.dev/text/template)).
 - Extracts structured examples and flag details from Cobra commands.
 - Handles related commands and command hierarchy.
 
@@ -23,7 +23,7 @@ In your code:
 
 ```go
 import (
-    "github.com/yourusername/gencodo"
+    "github.com/canonical/gencodo"
 )
 
 gencodo.GenDocsTree(rootCmd, "docs", templates, filePrepender, linkHandler)
