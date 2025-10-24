@@ -10,7 +10,6 @@ It extracts command metadata, examples, and flags, formatting them into arbitrar
 - Extracts structured examples and flag details from Cobra commands.
 - Handles related commands and command hierarchy.
 
-
 ## Usage
 
 To generate documentation for a CLI application:
@@ -46,13 +45,11 @@ var templates embed.FS
 
 For more usage examples, see the [test code](https://github.com/canonical/gencodo/blob/main/gencodo_test.go).
 
-
 ## Templates
 
 The library uses [Go templates](https://pkg.go.dev/text/template), so anything they support is readily available;
 there's no requirement to stick to a certain markup format (Markdown, reST, YAML, JSON, etc.).
 Also, see the example templates under `examples/`.
-
 
 ## Contributing
 
