@@ -172,3 +172,267 @@ func TestGenDocsTreeNested(t *testing.T) {
 		t.Errorf("unexpected files: %v", names)
 	}
 }
+
+func TestGenDocsFlags(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "flagtest",
+		Short: "Command with flags",
+	}
+	cmd.Flags().String("output", "stdout", "Output destination")
+	cmd.Flags().Int("count", 5, "Number of iterations")
+	cmd.Flags().Bool("verbose", false, "Enable verbose mode")
+
+	var output bytes.Buffer
+	templateContent := `{{ range .Flags }}{{ .Name }}:{{ .Usage }}:{{ .DefaultValue }}|{{ end }}`
+	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+
+	result := output.String()
+	if !strings.Contains(result, "output:Output destination:stdout|") {
+		t.Errorf("output flag not found in: %s", result)
+	}
+	if !strings.Contains(result, "count:Number of iterations:5|") {
+		t.Errorf("count flag not found in: %s", result)
+	}
+	if !strings.Contains(result, "verbose:Enable verbose mode:false|") {
+		t.Errorf("verbose flag not found in: %s", result)
+	}
+}
+
+func TestGenDocsSynopsis(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "syncmd [flags]",
+		Short: "Test synopsis",
+	}
+	var output bytes.Buffer
+	templateContent := `{{ .Synopsis }}`
+	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+
+	if !strings.Contains(output.String(), "syncmd [flags]") {
+		t.Errorf("Synopsis not rendered correctly: %s", output.String())
+	}
+}
+
+func TestGenDocsRef(t *testing.T) {
+	rootCmd := &cobra.Command{Use: "root"}
+	subCmd := &cobra.Command{
+		Use:   "multi word",
+		Short: "Command with spaces",
+	}
+	rootCmd.AddCommand(subCmd)
+
+	var output bytes.Buffer
+	templateContent := `{{ .Ref }}`
+	err := GenDocs(subCmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+
+	expected := "ref_root_multi"
+	if output.String() != expected {
+		t.Errorf("expected Ref %s, got %s", expected, output.String())
+	}
+}
+
+func TestGenDocsLongFallback(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "shortonly",
+		Short: "Short description only",
+	}
+	var output bytes.Buffer
+	templateContent := `{{ .Short }}|{{ .Long }}`
+	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+
+	expected := "Short description only|Short description only"
+	if output.String() != expected {
+		t.Errorf("expected %s, got %s", expected, output.String())
+	}
+}
+
+func TestGenDocsFilePrepender(t *testing.T) {
+	tempDir := t.TempDir()
+	rootCmd := &cobra.Command{Use: "root"}
+	subCmd := &cobra.Command{
+		Use:   "sub",
+		Short: "Subcommand",
+		Run:   func(cmd *cobra.Command, args []string) {},
+	}
+	rootCmd.AddCommand(subCmd)
+
+	headerContent := "# Auto-generated file\n"
+	templates := TemplateInfo{
+		IndexFileName:         "root.rst",
+		IndexTemplate:         `{{ range .Files }}{{ . }}{{ end }}`,
+		SingleCommandTemplate: `Content`,
+	}
+
+	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return headerContent }, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocsTree failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(tempDir, "root-sub.rst"))
+	if err != nil {
+		t.Fatalf("failed to read generated file: %v", err)
+	}
+
+	if !strings.HasPrefix(string(content), headerContent) {
+		t.Errorf("file does not start with prepended content: %s", string(content))
+	}
+}
+
+func TestGenDocsIndexContent(t *testing.T) {
+	tempDir := t.TempDir()
+	rootCmd := &cobra.Command{Use: "app"}
+	cmd1 := &cobra.Command{Use: "alpha", Short: "Alpha", Run: func(cmd *cobra.Command, args []string) {}}
+	cmd2 := &cobra.Command{Use: "beta", Short: "Beta", Run: func(cmd *cobra.Command, args []string) {}}
+	rootCmd.AddCommand(cmd1, cmd2)
+
+	templates := TemplateInfo{
+		IndexFileName:         "index.rst",
+		IndexTemplate:         `Files:\n{{ range .Files }}- {{ . }}\n{{ end }}`,
+		SingleCommandTemplate: `{{ .CommandName }}`,
+	}
+
+	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocsTree failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(tempDir, "index.rst"))
+	if err != nil {
+		t.Fatalf("failed to read index file: %v", err)
+	}
+
+	indexContent := string(content)
+	if !strings.Contains(indexContent, "- app-alpha.rst") {
+		t.Errorf("index missing app-alpha.rst: %s", indexContent)
+	}
+	if !strings.Contains(indexContent, "- app-beta.rst") {
+		t.Errorf("index missing app-beta.rst: %s", indexContent)
+	}
+}
+
+func TestGenDocsInvalidTemplate(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "test",
+		Short: "Test command",
+	}
+	var output bytes.Buffer
+	invalidTemplate := `{{ .CommandName `
+	err := GenDocs(cmd, &output, invalidTemplate, func(cmdPath, _ string) string { return cmdPath })
+	if err == nil {
+		t.Fatal("expected error for invalid template, got nil")
+	}
+}
+
+func TestGenDocsTreeInvalidIndexTemplate(t *testing.T) {
+	tempDir := t.TempDir()
+	rootCmd := &cobra.Command{Use: "root"}
+	subCmd := &cobra.Command{Use: "sub", Short: "Sub", Run: func(cmd *cobra.Command, args []string) {}}
+	rootCmd.AddCommand(subCmd)
+
+	templates := TemplateInfo{
+		IndexFileName:         "index.rst",
+		IndexTemplate:         `{{ .Files `,
+		SingleCommandTemplate: `{{ .CommandName }}`,
+	}
+
+	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	if err == nil {
+		t.Fatal("expected error for invalid index template, got nil")
+	}
+}
+
+func TestGenDocsReplaceSpacesFunction(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "test",
+		Short: "Test",
+		Annotations: map[string]string{
+			"related": "foo bar,baz qux",
+		},
+	}
+	var output bytes.Buffer
+	templateContent := `{{ range .RelatedCommands }}{{ . | replaceSpaces }}|{{ end }}`
+	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+
+	expected := "foo_bar|baz_qux|"
+	if output.String() != expected {
+		t.Errorf("expected %s, got %s", expected, output.String())
+	}
+}
+
+func TestGenDocsHeadingLen(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "longcommandname",
+		Short: "Test",
+	}
+	var output bytes.Buffer
+	templateContent := `{{ .HeadingLen }}`
+	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+
+	if output.String() != "15" {
+		t.Errorf("expected HeadingLen 15, got %s", output.String())
+	}
+}
+
+func TestGenDocsNoRelatedCommands(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "test",
+		Short: "Test without related commands",
+	}
+	var output bytes.Buffer
+	templateContent := `{{ len .RelatedCommands }}`
+	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+
+	if output.String() != "0" {
+		t.Errorf("expected 0 related commands, got %s", output.String())
+	}
+}
+
+func TestGenDocsNonInheritedFlags(t *testing.T) {
+	rootCmd := &cobra.Command{
+		Use:   "root",
+		Short: "Root command",
+	}
+	rootCmd.PersistentFlags().String("config", "", "Config file")
+
+	subCmd := &cobra.Command{
+		Use:   "sub",
+		Short: "Sub command",
+	}
+	subCmd.Flags().String("local", "", "Local flag")
+	rootCmd.AddCommand(subCmd)
+
+	var output bytes.Buffer
+	templateContent := `{{ range .Flags }}{{ .Name }}|{{ end }}`
+	err := GenDocs(subCmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+
+	result := output.String()
+	if !strings.Contains(result, "local|") {
+		t.Errorf("local flag should be included: %s", result)
+	}
+	if strings.Contains(result, "config") {
+		t.Errorf("inherited flag should not be included: %s", result)
+	}
+}
