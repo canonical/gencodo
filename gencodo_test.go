@@ -436,3 +436,195 @@ func TestGenDocsNonInheritedFlags(t *testing.T) {
 		t.Errorf("inherited flag should not be included: %s", result)
 	}
 }
+
+func TestReStructuredTextTemplates(t *testing.T) {
+	tempDir := t.TempDir()
+
+	rootCmd := &cobra.Command{
+		Use:   "myproject",
+		Short: "A sample CLI tool",
+		Long:  "myproject is a sample CLI tool for testing reStructuredText templates",
+	}
+
+	subCmd := &cobra.Command{
+		Use:   "process [file]",
+		Short: "Process a file",
+		Long:  "Process a file and perform various transformations on it",
+		Example: `Basic usage:
+$ myproject process input.txt
+
+With options:
+$ myproject process --format json input.txt`,
+		Run: func(cmd *cobra.Command, args []string) {},
+	}
+	subCmd.Flags().String("format", "text", "Output format")
+	subCmd.Flags().Bool("verbose", false, "Enable verbose output")
+
+	rootCmd.AddCommand(subCmd)
+
+	indexTemplate, err := os.ReadFile("examples/cli.rst")
+	if err != nil {
+		t.Fatalf("failed to read index template: %v", err)
+	}
+	commandTemplate, err := os.ReadFile("examples/command.rst")
+	if err != nil {
+		t.Fatalf("failed to read command template: %v", err)
+	}
+
+	templates := TemplateInfo{
+		IndexFileName:         "myproject-cli.rst",
+		IndexTemplate:         string(indexTemplate),
+		SingleCommandTemplate: string(commandTemplate),
+	}
+
+	err = GenDocsTree(rootCmd, tempDir, templates,
+		func(s string) string { return "" },
+		func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocsTree failed: %v", err)
+	}
+
+	indexPath := filepath.Join(tempDir, "myproject-cli.rst")
+	fileExists(t, indexPath)
+	indexContent, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("failed to read index file: %v", err)
+	}
+
+	indexStr := string(indexContent)
+	if !strings.Contains(indexStr, ".. _ref_myproject_cli:") {
+		t.Errorf("index missing reference label: %s", indexStr)
+	}
+	if !strings.Contains(indexStr, "myproject (CLI)") {
+		t.Errorf("index missing header: %s", indexStr)
+	}
+	if !strings.Contains(indexStr, ".. include:: myproject-process.rst") {
+		t.Errorf("index missing process command include: %s", indexStr)
+	}
+
+	processPath := filepath.Join(tempDir, "myproject-process.rst")
+	fileExists(t, processPath)
+	processContent, err := os.ReadFile(processPath)
+	if err != nil {
+		t.Fatalf("failed to read process file: %v", err)
+	}
+
+	processStr := string(processContent)
+	if !strings.Contains(processStr, ".. _ref_myproject_process:") {
+		t.Errorf("process file missing reference label: %s", processStr)
+	}
+	if !strings.Contains(processStr, "myproject process") {
+		t.Errorf("process file missing header: %s", processStr)
+	}
+	if !strings.Contains(processStr, ".. rubric:: Usage") {
+		t.Errorf("process file missing usage section: %s", processStr)
+	}
+	if !strings.Contains(processStr, ".. rubric:: Examples") {
+		t.Errorf("process file missing examples section: %s", processStr)
+	}
+	if !strings.Contains(processStr, ".. rubric:: Flags") {
+		t.Errorf("process file missing flags section: %s", processStr)
+	}
+	if !strings.Contains(processStr, "--format") {
+		t.Errorf("process file missing format flag: %s", processStr)
+	}
+	if !strings.Contains(processStr, "--verbose") {
+		t.Errorf("process file missing verbose flag: %s", processStr)
+	}
+	if !strings.Contains(processStr, ".. code-block:: console") {
+		t.Errorf("process file missing console code blocks: %s", processStr)
+	}
+}
+
+func TestMarkdownTemplates(t *testing.T) {
+	tempDir := t.TempDir()
+
+	rootCmd := &cobra.Command{
+		Use:   "myproject",
+		Short: "A sample CLI tool",
+		Long:  "myproject is a sample CLI tool for testing Markdown templates",
+	}
+
+	subCmd := &cobra.Command{
+		Use:   "process [file]",
+		Short: "Process a file",
+		Long:  "Process a file and perform various transformations on it",
+		Example: `Basic usage:
+$ myproject process input.txt
+
+With options:
+$ myproject process --format json input.txt`,
+		Run: func(cmd *cobra.Command, args []string) {},
+	}
+	subCmd.Flags().String("format", "text", "Output format")
+	subCmd.Flags().Bool("verbose", false, "Enable verbose output")
+
+	rootCmd.AddCommand(subCmd)
+
+	indexTemplate, err := os.ReadFile("examples/cli.md")
+	if err != nil {
+		t.Fatalf("failed to read index template: %v", err)
+	}
+	commandTemplate, err := os.ReadFile("examples/command.md")
+	if err != nil {
+		t.Fatalf("failed to read command template: %v", err)
+	}
+
+	templates := TemplateInfo{
+		IndexFileName:         "index.md",
+		IndexTemplate:         string(indexTemplate),
+		SingleCommandTemplate: string(commandTemplate),
+	}
+
+	err = GenDocsTree(rootCmd, tempDir, templates,
+		func(s string) string { return "" },
+		func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocsTree failed: %v", err)
+	}
+
+	indexPath := filepath.Join(tempDir, "index.md")
+	fileExists(t, indexPath)
+	indexContent, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("failed to read index file: %v", err)
+	}
+
+	indexStr := string(indexContent)
+	if !strings.Contains(indexStr, "# myproject (CLI)") {
+		t.Errorf("index missing header: %s", indexStr)
+	}
+	if !strings.Contains(indexStr, "myproject-process.rst") {
+		t.Errorf("index missing process command reference: %s", indexStr)
+	}
+
+	processPath := filepath.Join(tempDir, "myproject-process.rst")
+	fileExists(t, processPath)
+	processContent, err := os.ReadFile(processPath)
+	if err != nil {
+		t.Fatalf("failed to read process file: %v", err)
+	}
+
+	processStr := string(processContent)
+	if !strings.Contains(processStr, "# myproject process") {
+		t.Errorf("process file missing header: %s", processStr)
+	}
+	if !strings.Contains(processStr, "## Usage") {
+		t.Errorf("process file missing usage section: %s", processStr)
+	}
+	if !strings.Contains(processStr, "## Examples") {
+		t.Errorf("process file missing examples section: %s", processStr)
+	}
+	if !strings.Contains(processStr, "## Flags") {
+		t.Errorf("process file missing flags section: %s", processStr)
+	}
+	if !strings.Contains(processStr, "**--format**") {
+		t.Errorf("process file missing format flag: %s", processStr)
+	}
+	if !strings.Contains(processStr, "**--verbose**") {
+		t.Errorf("process file missing verbose flag: %s", processStr)
+	}
+	if !strings.Contains(processStr, "```console") {
+		t.Errorf("process file missing console code blocks: %s", processStr)
+	}
+}
