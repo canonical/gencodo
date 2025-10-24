@@ -45,6 +45,28 @@ var templates embed.FS
 
 For more usage examples, see the [test code](https://github.com/canonical/gencodo/blob/main/gencodo_test.go).
 
+### Cobra Command Structure
+
+Gencodo extracts and transforms Cobra command metadata as follows:
+
+Used unchanged:
+- `Use`: Command name and syntax
+- `Short`: Short description
+- `Long`: Detailed description (falls back to `Short` if empty)
+- Command hierarchy and related commands
+
+Transformed:
+- Examples: Parsed into structured `ExampleInfo` blocks containing separate `Info` (description) and `Usage` (command) fields. Examples are split by double newlines (`\n\n`), and command lines are detected by:
+  - Command prefixes: `$`, `>`, `#` (configurable via `ExampleParser`)
+  - Indentation: Lines with 2+ spaces (configurable via `MinIndent`)
+- Flags: Extracted into `FlagInfo` structs with `Name`, `Usage`, and `DefaultValue` fields (non-inherited flags only)
+
+Helper functions:
+- `replaceSpaces`: Replaces spaces with a specified character (useful for filenames)
+- `headingLen`: Returns the length of a command name (for heading formatting)
+
+These extracted fields are available in your templates for flexible formatting.
+
 ## Templates
 
 The library uses [Go templates](https://pkg.go.dev/text/template), so anything they support is readily available;

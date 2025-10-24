@@ -628,3 +628,265 @@ $ myproject process --format json input.txt`,
 		t.Errorf("process file missing console code blocks: %s", processStr)
 	}
 }
+
+func TestExampleParserWithDollarPrefix(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{"$"},
+		MinIndent:       2,
+	}
+
+	example := `Basic usage:
+$ mycommand arg1
+
+Advanced usage:
+$ mycommand --flag arg2`
+
+	results := parser.Parse(example)
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 examples, got %d", len(results))
+	}
+
+	if results[0].Info != "Basic usage:" {
+		t.Errorf("expected info 'Basic usage:', got '%s'", results[0].Info)
+	}
+	if results[0].Usage != "$ mycommand arg1" {
+		t.Errorf("expected usage '$ mycommand arg1', got '%s'", results[0].Usage)
+	}
+
+	if results[1].Info != "Advanced usage:" {
+		t.Errorf("expected info 'Advanced usage:', got '%s'", results[1].Info)
+	}
+	if results[1].Usage != "$ mycommand --flag arg2" {
+		t.Errorf("expected usage '$ mycommand --flag arg2', got '%s'", results[1].Usage)
+	}
+}
+
+func TestExampleParserWithPowerShellPrefix(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{">"},
+		MinIndent:       2,
+	}
+
+	example := `Windows example:
+> mycommand.exe /arg`
+
+	results := parser.Parse(example)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 example, got %d", len(results))
+	}
+
+	if results[0].Info != "Windows example:" {
+		t.Errorf("expected info 'Windows example:', got '%s'", results[0].Info)
+	}
+	if results[0].Usage != "> mycommand.exe /arg" {
+		t.Errorf("expected usage '> mycommand.exe /arg', got '%s'", results[0].Usage)
+	}
+}
+
+func TestExampleParserWithRootPrefix(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{"#"},
+		MinIndent:       2,
+	}
+
+	example := `Run as root:
+# systemctl restart service`
+
+	results := parser.Parse(example)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 example, got %d", len(results))
+	}
+
+	if results[0].Info != "Run as root:" {
+		t.Errorf("expected info 'Run as root:', got '%s'", results[0].Info)
+	}
+	if results[0].Usage != "# systemctl restart service" {
+		t.Errorf("expected usage '# systemctl restart service', got '%s'", results[0].Usage)
+	}
+}
+
+func TestExampleParserWithIndentation(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{},
+		MinIndent:       2,
+	}
+
+	example := `Indented example:
+  mycommand indented`
+
+	results := parser.Parse(example)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 example, got %d", len(results))
+	}
+
+	if results[0].Info != "Indented example:" {
+		t.Errorf("expected info 'Indented example:', got '%s'", results[0].Info)
+	}
+	if results[0].Usage != "  mycommand indented" {
+		t.Errorf("expected usage '  mycommand indented', got '%s'", results[0].Usage)
+	}
+}
+
+func TestExampleParserMultiplePrefixes(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{"$", ">", "#"},
+		MinIndent:       2,
+	}
+
+	example := `Unix:
+$ mycommand unix
+
+Windows:
+> mycommand.exe windows
+
+Root:
+# mycommand root`
+
+	results := parser.Parse(example)
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 examples, got %d", len(results))
+	}
+
+	if results[0].Info != "Unix:" {
+		t.Errorf("expected info 'Unix:', got '%s'", results[0].Info)
+	}
+	if results[1].Info != "Windows:" {
+		t.Errorf("expected info 'Windows:', got '%s'", results[1].Info)
+	}
+	if results[2].Info != "Root:" {
+		t.Errorf("expected info 'Root:', got '%s'", results[2].Info)
+	}
+}
+
+func TestExampleParserNoInfo(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{"$"},
+		MinIndent:       2,
+	}
+
+	example := `$ mycommand only
+
+$ another command`
+
+	results := parser.Parse(example)
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 examples, got %d", len(results))
+	}
+
+	if results[0].Info != "" {
+		t.Errorf("expected empty info, got '%s'", results[0].Info)
+	}
+	if results[0].Usage != "$ mycommand only" {
+		t.Errorf("expected usage '$ mycommand only', got '%s'", results[0].Usage)
+	}
+}
+
+func TestExampleParserMultilineUsage(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{"$"},
+		MinIndent:       2,
+	}
+
+	example := `Complex example:
+$ mycommand \
+  --flag1 value1 \
+  --flag2 value2`
+
+	results := parser.Parse(example)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 example, got %d", len(results))
+	}
+
+	if results[0].Info != "Complex example:" {
+		t.Errorf("expected info 'Complex example:', got '%s'", results[0].Info)
+	}
+
+	expectedUsage := "$ mycommand \\\n  --flag1 value1 \\\n  --flag2 value2"
+	if results[0].Usage != expectedUsage {
+		t.Errorf("expected usage '%s', got '%s'", expectedUsage, results[0].Usage)
+	}
+}
+
+func TestExampleParserEmptyString(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{"$"},
+		MinIndent:       2,
+	}
+
+	results := parser.Parse("")
+
+	if results != nil {
+		t.Errorf("expected nil for empty string, got %v", results)
+	}
+}
+
+func TestExampleParserDefaultPrefixes(t *testing.T) {
+	parser := ExampleParser{} // Use defaults
+
+	example := `With dollar:
+$ cmd1
+
+With angle:
+> cmd2
+
+With hash:
+# cmd3`
+
+	results := parser.Parse(example)
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 examples, got %d", len(results))
+	}
+}
+
+func TestExampleParserNoMatchFallback(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{"$"},
+		MinIndent:       10, // Very high, won't match normal indents
+	}
+
+	example := `mycommand without prefix`
+
+	results := parser.Parse(example)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 example (fallback), got %d", len(results))
+	}
+
+	if results[0].Info != "" {
+		t.Errorf("expected empty info for fallback, got '%s'", results[0].Info)
+	}
+	if results[0].Usage != "mycommand without prefix" {
+		t.Errorf("expected full text as usage, got '%s'", results[0].Usage)
+	}
+}
+
+func TestExampleParserMultilineInfo(t *testing.T) {
+	parser := ExampleParser{
+		CommandPrefixes: []string{"$"},
+		MinIndent:       2,
+	}
+
+	example := `This is a longer description
+that spans multiple lines
+and explains the example:
+$ mycommand arg`
+
+	results := parser.Parse(example)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 example, got %d", len(results))
+	}
+
+	expectedInfo := "This is a longer description\nthat spans multiple lines\nand explains the example:"
+	if results[0].Info != expectedInfo {
+		t.Errorf("expected info '%s', got '%s'", expectedInfo, results[0].Info)
+	}
+}

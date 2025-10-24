@@ -44,6 +44,12 @@ type ExampleInfo struct {
 	Usage string // Example command usage
 }
 
+// ExampleParser configures how examples are parsed from command example strings.
+type ExampleParser struct {
+	CommandPrefixes []string // Prefixes that indicate command lines (e.g., "$", ">", "#")
+	MinIndent       int      // Minimum indentation to consider a line as a command
+}
+
 // TemplateInfo stores templates used for documentation generation.
 type TemplateInfo struct {
 	IndexFileName         string // Name of the generated index file
@@ -67,30 +73,12 @@ func GenDocs(cmd *cobra.Command, w io.Writer, templateContent string, linkHandle
 
 	headinglen := len(name)
 
-	entries := strings.Split(cmd.Example, "\n\n")
-	var structuredExamples []ExampleInfo
-
-	for _, entry := range entries {
-		entry = strings.TrimSpace(entry)
-		lines := strings.Split(entry, "\n")
-		var infoLines, usageLines []string
-
-		for i, line := range lines {
-			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, "$") {
-				infoLines = lines[:i]
-				usageLines = lines[i:]
-				break
-			}
-		}
-
-		if len(infoLines) > 0 && len(usageLines) > 0 {
-			structuredExamples = append(structuredExamples, ExampleInfo{
-				Info:  strings.Join(infoLines, "\n"),
-				Usage: strings.Join(usageLines, "\n"),
-			})
-		}
+	// Use default parser with common command prefixes
+	parser := ExampleParser{
+		CommandPrefixes: []string{"$", ">", "#"},
+		MinIndent:       2,
 	}
+	structuredExamples := parser.Parse(cmd.Example)
 
 	flags := cmd.NonInheritedFlags()
 	var FlagDetails []FlagInfo
@@ -235,4 +223,94 @@ func GenDocsTree(
 	}
 
 	return nil
+}
+
+// Parse extracts structured examples from a raw example string.
+// It uses a state machine approach with configurable command detection.
+func (p *ExampleParser) Parse(example string) []ExampleInfo {
+	if example == "" {
+		return nil
+	}
+
+	// Set defaults if not configured
+	prefixes := p.CommandPrefixes
+	if len(prefixes) == 0 {
+		prefixes = []string{"$", ">", "#"}
+	}
+	minIndent := p.MinIndent
+	if minIndent <= 0 {
+		minIndent = 2
+	}
+
+	// Split by double newlines to get separate example blocks
+	entries := strings.Split(example, "\n\n")
+	var results []ExampleInfo
+
+	for _, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+
+		lines := strings.Split(entry, "\n")
+		var infoLines, usageLines []string
+		foundCommand := false
+
+		for i, line := range lines {
+			// Check if this line looks like a command
+			isCommand := p.isCommandLine(line, prefixes, minIndent)
+
+			if isCommand && !foundCommand {
+				// First command line found - split here
+				infoLines = lines[:i]
+				usageLines = lines[i:]
+				foundCommand = true
+				break
+			}
+		}
+
+		// Fallback: if no command prefix/indent detected, treat as usage-only
+		if !foundCommand && len(lines) > 0 {
+			usageLines = lines
+		}
+
+		// Add example if we have usage content
+		if len(usageLines) > 0 {
+			info := ""
+			if len(infoLines) > 0 {
+				// Join and trim info lines
+				info = strings.TrimSpace(strings.Join(infoLines, "\n"))
+			}
+
+			results = append(results, ExampleInfo{
+				Info:  info,
+				Usage: strings.Join(usageLines, "\n"),
+			})
+		}
+	}
+
+	return results
+}
+
+// isCommandLine determines if a line looks like a command based on prefixes or indentation.
+func (p *ExampleParser) isCommandLine(line string, prefixes []string, minIndent int) bool {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return false
+	}
+
+	// Check for command prefixes
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(trimmed, prefix) {
+			return true
+		}
+	}
+
+	// Check for indentation (commands are often indented in examples)
+	leadingSpaces := len(line) - len(strings.TrimLeft(line, " \t"))
+	if leadingSpaces >= minIndent && trimmed != "" {
+		return true
+	}
+
+	return false
 }
