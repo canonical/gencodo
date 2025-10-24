@@ -71,7 +71,13 @@ These extracted fields are available in your templates for flexible formatting.
 
 The library uses [Go templates](https://pkg.go.dev/text/template), so anything they support is readily available;
 there's no requirement to stick to a certain markup format (Markdown, reST, YAML, JSON, etc.).
-Also, see the example templates under `examples/`.
+Also, see the reST/Markdown example templates under `examples/`.
+
+Gencodo requires two template types via the `TemplateInfo` struct:
+
+1. `SingleCommandTemplate`: Template for individual command documentation files. Used by `GenDocs()` to generate one file per command, containing command metadata like name, description, synopsis, flags, examples, and related commands. Each file is named after the command path (e.g., `my-app-subcommand.rst`).
+
+2. `IndexTemplate`: Template for the index/table of contents file. Used by `GenDocsTree()` to generate a single file listing all generated command documentation files. Receives a `Files` array containing all generated filenames. The output filename is set via `IndexFileName` in the `TemplateInfo` struct.
 
 ## Contributing
 
