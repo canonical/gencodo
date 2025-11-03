@@ -89,6 +89,52 @@ $ example bar`,
 	}
 }
 
+func TestGenDocsNilCommand(t *testing.T) {
+	var output bytes.Buffer
+	templateContent := `{{ .CommandName }}`
+	err := GenDocs(nil, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err == nil {
+		t.Fatal("expected error for nil command, got nil")
+	}
+	expectedMsg := "command cannot be nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error '%s', got '%s'", expectedMsg, err.Error())
+	}
+}
+
+func TestGenDocsNilWriter(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "test",
+		Short: "Test command",
+	}
+	templateContent := `{{ .CommandName }}`
+	err := GenDocs(cmd, nil, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	if err == nil {
+		t.Fatal("expected error for nil writer, got nil")
+	}
+	expectedMsg := "writer cannot be nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error '%s', got '%s'", expectedMsg, err.Error())
+	}
+}
+
+func TestGenDocsTreeNilCommand(t *testing.T) {
+	tempDir := t.TempDir()
+	templates := TemplateInfo{
+		IndexFileName:         "index.rst",
+		IndexTemplate:         `{{ range .Files }}{{ . }}{{ end }}`,
+		SingleCommandTemplate: `{{ .CommandName }}`,
+	}
+	err := GenDocsTree(nil, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	if err == nil {
+		t.Fatal("expected error for nil command, got nil")
+	}
+	expectedMsg := "command cannot be nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error '%s', got '%s'", expectedMsg, err.Error())
+	}
+}
+
 func TestGenDocsEmptyExample(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "noexample",

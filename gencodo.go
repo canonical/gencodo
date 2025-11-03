@@ -20,6 +20,7 @@ package gencodo
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -59,6 +60,13 @@ type TemplateInfo struct {
 
 // GenDocs generates docs for a single command in an eponymous file.
 func GenDocs(cmd *cobra.Command, w io.Writer, templateContent string, linkHandler func(string, string) string) error {
+	if cmd == nil {
+		return fmt.Errorf("command cannot be nil")
+	}
+	if w == nil {
+		return fmt.Errorf("writer cannot be nil")
+	}
+
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
 
@@ -159,6 +167,10 @@ func GenDocsTree(
 	filePrepender func(string) string,
 	linkHandler func(string, string) string,
 ) error {
+	if cmd == nil {
+		return fmt.Errorf("command cannot be nil")
+	}
+
 	var files []string
 
 	var generateDocs func(*cobra.Command) error
