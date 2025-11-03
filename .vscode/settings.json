@@ -1,0 +1,14 @@
+{
+    "chat.mcp.serverSampling": {
+        "gencodo/.vscode/mcp.json: github-remote": {
+            "allowedModels": [
+                "copilot/gpt-4.1",
+                "copilot/claude-haiku-4.5",
+                "copilot/claude-3.5-sonnet",
+                "copilot/claude-sonnet-4",
+                "copilot/claude-sonnet-4.5"
+            ]
+        }
+    },
+    "git.enableCommitSigning": false
+}
