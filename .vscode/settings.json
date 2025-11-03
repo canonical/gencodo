@@ -10,5 +10,5 @@
             ]
         }
     },
-    "git.enableCommitSigning": false
+    "git.enableCommitSigning": true
 }
