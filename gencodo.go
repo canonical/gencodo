@@ -171,6 +171,11 @@ func GenDocsTree(
 		return fmt.Errorf("command cannot be nil")
 	}
 
+	// Ensure output directory exists
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
 	var files []string
 
 	var generateDocs func(*cobra.Command) error

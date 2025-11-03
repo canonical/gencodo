@@ -195,6 +195,36 @@ func TestGenDocsTree(t *testing.T) {
 	fileExists(t, filepath.Join(tempDir, "root-sub2.rst"))
 }
 
+func TestGenDocsTreeNonExistentDir(t *testing.T) {
+	tempDir := t.TempDir()
+	// Create a nested path that doesn't exist
+	outputDir := filepath.Join(tempDir, "docs", "cli", "commands")
+	
+	rootCmd := &cobra.Command{Use: "app"}
+	subCmd := &cobra.Command{
+		Use:   "test",
+		Short: "Test command",
+		Run:   func(cmd *cobra.Command, args []string) {},
+	}
+	rootCmd.AddCommand(subCmd)
+	
+	templates := TemplateInfo{
+		IndexFileName:         "index.rst",
+		IndexTemplate:         `{{ range .Files }}{{ . }}{{ end }}`,
+		SingleCommandTemplate: `{{ .CommandName }}`,
+	}
+	
+	// Should succeed even though directory doesn't exist
+	err := GenDocsTree(rootCmd, outputDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	if err != nil {
+		t.Fatalf("GenDocsTree should create directory, but failed: %v", err)
+	}
+	
+	// Verify directory was created and files exist
+	fileExists(t, filepath.Join(outputDir, "index.rst"))
+	fileExists(t, filepath.Join(outputDir, "app-test.rst"))
+}
+
 func TestGenDocsTreeNested(t *testing.T) {
 	tempDir := t.TempDir()
 	rootCmd := &cobra.Command{Use: "top"}
