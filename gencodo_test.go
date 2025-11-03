@@ -249,6 +249,59 @@ func TestGenDocsTreeNested(t *testing.T) {
 	}
 }
 
+func TestGenDocsTreeEmptyTemplateInfo(t *testing.T) {
+	tempDir := t.TempDir()
+	rootCmd := &cobra.Command{Use: "test"}
+	subCmd := &cobra.Command{Use: "sub", Short: "Sub", Run: func(cmd *cobra.Command, args []string) {}}
+	rootCmd.AddCommand(subCmd)
+
+	tests := []struct {
+		name      string
+		templates TemplateInfo
+		wantErr   string
+	}{
+		{
+			name: "empty IndexFileName",
+			templates: TemplateInfo{
+				IndexFileName:         "",
+				IndexTemplate:         `{{ range .Files }}{{ . }}{{ end }}`,
+				SingleCommandTemplate: `{{ .CommandName }}`,
+			},
+			wantErr: "TemplateInfo.IndexFileName cannot be empty",
+		},
+		{
+			name: "empty IndexTemplate",
+			templates: TemplateInfo{
+				IndexFileName:         "index.rst",
+				IndexTemplate:         "",
+				SingleCommandTemplate: `{{ .CommandName }}`,
+			},
+			wantErr: "TemplateInfo.IndexTemplate cannot be empty",
+		},
+		{
+			name: "empty SingleCommandTemplate",
+			templates: TemplateInfo{
+				IndexFileName:         "index.rst",
+				IndexTemplate:         `{{ range .Files }}{{ . }}{{ end }}`,
+				SingleCommandTemplate: "",
+			},
+			wantErr: "TemplateInfo.SingleCommandTemplate cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := GenDocsTree(rootCmd, tempDir, tt.templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+			if err == nil {
+				t.Fatal("expected error for empty template field, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error containing '%s', got '%s'", tt.wantErr, err.Error())
+			}
+		})
+	}
+}
+
 func TestGenDocsFlags(t *testing.T) {
 	cmd := &cobra.Command{
 		Use:   "flagtest",

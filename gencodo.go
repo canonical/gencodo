@@ -58,6 +58,20 @@ type TemplateInfo struct {
 	SingleCommandTemplate string // Template for individual command files
 }
 
+// Validate checks that all required TemplateInfo fields are non-empty.
+func (t *TemplateInfo) Validate() error {
+	if t.IndexFileName == "" {
+		return fmt.Errorf("TemplateInfo.IndexFileName cannot be empty")
+	}
+	if t.IndexTemplate == "" {
+		return fmt.Errorf("TemplateInfo.IndexTemplate cannot be empty")
+	}
+	if t.SingleCommandTemplate == "" {
+		return fmt.Errorf("TemplateInfo.SingleCommandTemplate cannot be empty")
+	}
+	return nil
+}
+
 // GenDocs generates docs for a single command in an eponymous file.
 func GenDocs(cmd *cobra.Command, w io.Writer, templateContent string, linkHandler func(string, string) string) error {
 	if cmd == nil {
@@ -169,6 +183,11 @@ func GenDocsTree(
 ) error {
 	if cmd == nil {
 		return fmt.Errorf("command cannot be nil")
+	}
+
+	// Validate template configuration
+	if err := templates.Validate(); err != nil {
+		return fmt.Errorf("invalid template configuration: %w", err)
 	}
 
 	// Ensure output directory exists
