@@ -57,6 +57,20 @@ type TemplateInfo struct {
 	SingleCommandTemplate string // Template for individual command files
 }
 
+// Validate checks that all required TemplateInfo fields are non-empty.
+func (t *TemplateInfo) Validate() error {
+	if t.IndexFileName == "" {
+		return fmt.Errorf("TemplateInfo.IndexFileName cannot be empty")
+	}
+	if t.IndexTemplate == "" {
+		return fmt.Errorf("TemplateInfo.IndexTemplate cannot be empty")
+	}
+	if t.SingleCommandTemplate == "" {
+		return fmt.Errorf("TemplateInfo.SingleCommandTemplate cannot be empty")
+	}
+	return nil
+}
+
 // format is the output format for generated docs.
 type format int
 
@@ -199,6 +213,16 @@ func genDocsTree(
 	linkHandler func(string, string) string,
 	format format,
 ) error {
+	// Validate template configuration
+	if err := templates.Validate(); err != nil {
+		return fmt.Errorf("invalid template configuration: %w", err)
+	}
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
 	var files []string
 
 	var generateDocs func(*cobra.Command) error
