@@ -34,7 +34,7 @@ gencodo.GenDocsTree(rootCmd, "docs", templates, filePrepender, linkHandler)
 - `linkHandler`: Function to handle internal links.
 
 These arguments are in line with [Cobra's own implementation](https://umarcor.github.io/cobra/#generating-restructured-text-docs-for-your-own-cobracommand);
-the only addition is `templates`, the argument that sets up the names of the [custom templates](https://github.com/canonical/gencodo/blob/123f06acd914276b95254f829280ef5a83e25cff/gencodo.go#L29) used for documentation formatting.
+the only addition is `templates`, the argument that sets up the names of the [custom templates](https://github.com/canonical/gencodo/blob/main/gencodo.go#L54-L58) used for documentation formatting.
 
 One way to add them to your code is [embedding](https://pkg.go.dev/embed), for instance:
 
