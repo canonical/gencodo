@@ -24,7 +24,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"text/template"
 
@@ -208,12 +207,6 @@ func genDocsTree(
 			return nil
 		}
 
-		for _, subCmd := range c.Commands() {
-			if err := generateDocs(subCmd); err != nil {
-				return err
-			}
-		}
-
 		basename := strings.ReplaceAll(c.CommandPath(), " ", "-") + format.FileExtension()
 		filename := filepath.Join(dir, basename)
 		f, err := os.Create(filename)
@@ -230,6 +223,13 @@ func genDocsTree(
 		}
 
 		files = append(files, basename)
+
+		for _, subCmd := range c.Commands() {
+			if err := generateDocs(subCmd); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}
 
@@ -238,8 +238,6 @@ func genDocsTree(
 			return err
 		}
 	}
-
-	sort.Strings(files)
 
 	data := struct {
 		Files []string
