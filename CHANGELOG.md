@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: `GenDocsTree()` is now unexported (`genDocsTree()`)
   - Migration: Use `GenRSTTree()` for reStructuredText or `GenMarkdownTree()` for Markdown
   - Previous code using `GenDocsTree()` will break and must be updated
+- **BREAKING**: Command ordering in generated documentation now preserves Cobra's order instead of alphabetical sorting
+  - Documentation files now appear in the order commands were added via `AddCommand()`
+  - Respects `cobra.EnableCommandSorting` setting
+  - Users wanting alphabetical order should enable Cobra's command sorting
 
 ### Fixed
 - Loop variable capture in parallel tests to prevent race conditions
