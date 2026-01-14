@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-01-14
+
+### Added
+- Input validation for `TemplateInfo` fields with descriptive error messages
+- Auto-creation of output directories (including nested paths)
+
 ## [0.1.2] - 2026-01-14
 
 ### Added
