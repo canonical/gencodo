@@ -1,14 +1,25 @@
 # Gencodo
 
-Gencodo is a format-agnostic documentation generator for CLI applications built with [Cobra](https://github.com/spf13/cobra).
-It extracts command metadata, examples, and flags, formatting them into arbitrarily templated files for integration with your documentation workflows.
+Gencodo is a **template-driven** documentation generator for [Cobra](https://github.com/spf13/cobra) CLI applications.
 
-## Features
+While Cobra provides built-in documentation generators for Markdown, reStructuredText, and man pages, these use hardcoded formats that may not match your project's documentation style or toolchain requirements. **Gencodo solves this by letting you provide your own [Go templates](https://pkg.go.dev/text/template)**, giving you complete control over the output format, whether that's custom Markdown flavors, reStructuredText with specific directives, JSON/YAML schemas, or any other text-based format.
 
-- Automatically generates documentation for Cobra-based CLI commands.
-- Supports custom, format-agnostic templates for individual and index pages.
-- Extracts structured examples and flag details from Cobra commands.
-- Handles related commands and command hierarchy.
+Flexibility through templates is the key reason for Gencodo to exist; it extracts structured data from your Cobra commands (metadata, flags, parsed examples) and passes it to your templates, allowing you to format documentation exactly how you need it.
+
+## Why Gencodo?
+
+Use Cobra's built-in generators when:
+- The default Markdown/reST/man page formats work for you
+- You don't need custom formatting or documentation structure
+
+Use Gencodo when:
+- You need custom documentation formats (specific Markdown/reST variants, JSON, YAML, etc.)
+- Your documentation toolchain requires specific markup patterns or directives
+- You want structured example parsing (separate descriptions from commands)
+- You need fine-grained control over how commands, flags, and examples are presented
+- You're integrating with existing documentation that has established formatting conventions
+
+See the `examples/` directory for reference templates in Markdown and reStructuredText formats.
 
 ## Usage
 
@@ -25,16 +36,21 @@ import (
     "github.com/canonical/gencodo"
 )
 
-gencodo.GenDocsTree(rootCmd, "docs", templates, filePrepender, linkHandler)
+// For Markdown documentation
+gencodo.GenMarkdownTree(rootCmd, "docs", templates, filePrepender, linkHandler)
+
+// For reStructuredText documentation
+gencodo.GenRSTTree(rootCmd, "docs", templates, filePrepender, linkHandler)
 ```
 
 - `rootCmd`: Your Cobra root command.
 - `docs`: Output directory for documentation files.
+- `templates`: `TemplateInfo` struct containing your custom templates for index and command files.
 - `filePrepender`: Function to prepend headers to files.
 - `linkHandler`: Function to handle internal links.
 
 These arguments are in line with [Cobra's own implementation](https://umarcor.github.io/cobra/#generating-restructured-text-docs-for-your-own-cobracommand);
-the only addition is `templates`, the argument that sets up the names of the [custom templates](https://github.com/canonical/gencodo/blob/123f06acd914276b95254f829280ef5a83e25cff/gencodo.go#L29) used for documentation formatting.
+the main addition is `templates`, which provides custom templates for documentation formatting.
 
 One way to add them to your code is [embedding](https://pkg.go.dev/embed), for instance:
 
@@ -69,9 +85,13 @@ These extracted fields are available in your templates for flexible formatting.
 
 ## Templates
 
-The library uses [Go templates](https://pkg.go.dev/text/template), so anything they support is readily available;
-there's no requirement to stick to a certain markup format (Markdown, reST, YAML, JSON, etc.).
-Also, see the reST/Markdown example templates under `examples/`.
+Gencodo uses [Go templates](https://pkg.go.dev/text/template), giving you full access to Go's templating capabilities. There's no restriction on output format - generate Markdown, reStructuredText, YAML, JSON, or any text-based format your documentation workflow requires.
+
+**Example templates**: The `examples/` directory contains reference implementations for both Markdown and reStructuredText:
+- `examples/command.md` / `examples/command.rst` - Individual command documentation templates
+- `examples/cli.md` / `examples/cli.rst` - Index/table of contents templates
+
+These demonstrate common patterns like conditional sections, flag iteration, and structured example formatting.
 
 Gencodo requires two template types via the `TemplateInfo` struct:
 
