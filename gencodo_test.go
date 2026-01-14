@@ -121,55 +121,87 @@ func TestGenDocsIndentRepeat(t *testing.T) {
 	}
 }
 
-func TestGenDocsTree(t *testing.T) {
-	tempDir := t.TempDir()
-	rootCmd := &cobra.Command{Use: "root"}
-	subCmd1 := &cobra.Command{
-		Use:   "sub1",
-		Short: "Subcommand 1",
-		Run:   func(cmd *cobra.Command, args []string) {},
+func TestGenDocTree(t *testing.T) {
+	tests := map[string]struct {
+		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string, func(string, string) string) error
+		fileExtension string
+	}{
+		"TestGenRSTTree":      {GenRSTTree, ".rst"},
+		"TestGenMarkdownTree": {GenMarkdownTree, ".md"},
 	}
-	subCmd2 := &cobra.Command{
-		Use:   "sub2",
-		Short: "Subcommand 2",
-		Run:   func(cmd *cobra.Command, args []string) {},
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			tempDir := t.TempDir()
+			rootCmd := &cobra.Command{Use: "root"}
+			subCmd1 := &cobra.Command{
+				Use:   "sub1",
+				Short: "Subcommand 1",
+				Run:   func(cmd *cobra.Command, args []string) {},
+			}
+			subCmd2 := &cobra.Command{
+				Use:   "sub2",
+				Short: "Subcommand 2",
+				Run:   func(cmd *cobra.Command, args []string) {},
+			}
+			rootCmd.AddCommand(subCmd1, subCmd2)
+			templates := TemplateInfo{
+				IndexFileName:         "root" + tc.fileExtension,
+				IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
+				SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
+			}
+			err := tc.genDocFunc(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+			if err != nil {
+				t.Fatalf("genDocFunc failed: %v", err)
+			}
+			fileExists(t, filepath.Join(tempDir, "root"+tc.fileExtension))
+			fileExists(t, filepath.Join(tempDir, "root-sub1"+tc.fileExtension))
+			fileExists(t, filepath.Join(tempDir, "root-sub2"+tc.fileExtension))
+		})
 	}
-	rootCmd.AddCommand(subCmd1, subCmd2)
-	templates := TemplateInfo{
-		IndexFileName:         "root.rst",
-		IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
-		SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
-	}
-	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
-	if err != nil {
-		t.Fatalf("GenDocsTree failed: %v", err)
-	}
-	fileExists(t, filepath.Join(tempDir, "root.rst"))
-	fileExists(t, filepath.Join(tempDir, "root-sub1.rst"))
-	fileExists(t, filepath.Join(tempDir, "root-sub2.rst"))
 }
 
-func TestGenDocsTreeNested(t *testing.T) {
-	tempDir := t.TempDir()
-	rootCmd := &cobra.Command{Use: "top"}
-	subCmdA := &cobra.Command{Use: "A", Short: "A", Run: func(cmd *cobra.Command, args []string) {}}
-	subCmdB := &cobra.Command{Use: "B", Short: "B", Run: func(cmd *cobra.Command, args []string) {}}
-	subCmdC := &cobra.Command{Use: "C", Short: "C", Run: func(cmd *cobra.Command, args []string) {}}
-	subCmdA1 := &cobra.Command{Use: "A1", Short: "A1", Run: func(cmd *cobra.Command, args []string) {}}
-	subCmdA.AddCommand(subCmdA1)
-	rootCmd.AddCommand(subCmdA, subCmdB, subCmdC)
-	templates := TemplateInfo{
-		IndexFileName:         "top.rst",
-		IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
-		SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
+func TestGenDocTreeNested(t *testing.T) {
+	tests := map[string]struct {
+		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string, func(string, string) string) error
+		fileExtension string
+	}{
+		"TestGenRSTTree":      {GenRSTTree, ".rst"},
+		"TestGenMarkdownTree": {GenMarkdownTree, ".md"},
 	}
-	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
-	if err != nil {
-		t.Fatalf("GenDocsTree failed: %v", err)
-	}
-	names := readDirNames(t, tempDir)
-	if !containsAll(names, []string{"top.rst", "top-A.rst", "top-A-A1.rst", "top-B.rst", "top-C.rst"}) {
-		t.Errorf("unexpected files: %v", names)
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			tempDir := t.TempDir()
+			rootCmd := &cobra.Command{Use: "top"}
+			subCmdA := &cobra.Command{Use: "A", Short: "A", Run: func(cmd *cobra.Command, args []string) {}}
+			subCmdB := &cobra.Command{Use: "B", Short: "B", Run: func(cmd *cobra.Command, args []string) {}}
+			subCmdC := &cobra.Command{Use: "C", Short: "C", Run: func(cmd *cobra.Command, args []string) {}}
+			subCmdA1 := &cobra.Command{Use: "A1", Short: "A1", Run: func(cmd *cobra.Command, args []string) {}}
+			subCmdA.AddCommand(subCmdA1)
+			rootCmd.AddCommand(subCmdA, subCmdB, subCmdC)
+			templates := TemplateInfo{
+				IndexFileName:         "top" + tc.fileExtension,
+				IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
+				SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
+			}
+			err := tc.genDocFunc(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+			if err != nil {
+				t.Fatalf("GenRSTTree failed: %v", err)
+			}
+			names := readDirNames(t, tempDir)
+			var expectedFiles []string
+			for _, basename := range []string{"top", "top-A", "top-A-A1", "top-B", "top-C"} {
+				expectedFiles = append(expectedFiles, basename+tc.fileExtension)
+			}
+			if !containsAll(names, expectedFiles) {
+				t.Errorf("unexpected files: %v", names)
+			}
+		})
 	}
 }
 
@@ -274,9 +306,9 @@ func TestGenDocsFilePrepender(t *testing.T) {
 		SingleCommandTemplate: `Content`,
 	}
 
-	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return headerContent }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return headerContent }, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenDocsTree failed: %v", err)
+		t.Fatalf("GenRSTTree failed: %v", err)
 	}
 
 	content, err := os.ReadFile(filepath.Join(tempDir, "root-sub.rst"))
@@ -302,9 +334,9 @@ func TestGenDocsIndexContent(t *testing.T) {
 		SingleCommandTemplate: `{{ .CommandName }}`,
 	}
 
-	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenDocsTree failed: %v", err)
+		t.Fatalf("GenRSTTree failed: %v", err)
 	}
 
 	content, err := os.ReadFile(filepath.Join(tempDir, "index.rst"))
@@ -334,7 +366,7 @@ func TestGenDocsInvalidTemplate(t *testing.T) {
 	}
 }
 
-func TestGenDocsTreeInvalidIndexTemplate(t *testing.T) {
+func TestGenRSTTreeInvalidIndexTemplate(t *testing.T) {
 	tempDir := t.TempDir()
 	rootCmd := &cobra.Command{Use: "root"}
 	subCmd := &cobra.Command{Use: "sub", Short: "Sub", Run: func(cmd *cobra.Command, args []string) {}}
@@ -346,7 +378,7 @@ func TestGenDocsTreeInvalidIndexTemplate(t *testing.T) {
 		SingleCommandTemplate: `{{ .CommandName }}`,
 	}
 
-	err := GenDocsTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
 	if err == nil {
 		t.Fatal("expected error for invalid index template, got nil")
 	}
@@ -477,11 +509,11 @@ $ myproject process --format json input.txt`,
 		SingleCommandTemplate: string(commandTemplate),
 	}
 
-	err = GenDocsTree(rootCmd, tempDir, templates,
+	err = GenRSTTree(rootCmd, tempDir, templates,
 		func(s string) string { return "" },
 		func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenDocsTree failed: %v", err)
+		t.Fatalf("GenRSTTree failed: %v", err)
 	}
 
 	indexPath := filepath.Join(tempDir, "myproject-cli.rst")
@@ -576,11 +608,11 @@ $ myproject process --format json input.txt`,
 		SingleCommandTemplate: string(commandTemplate),
 	}
 
-	err = GenDocsTree(rootCmd, tempDir, templates,
+	err = GenMarkdownTree(rootCmd, tempDir, templates,
 		func(s string) string { return "" },
 		func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
-		t.Fatalf("GenDocsTree failed: %v", err)
+		t.Fatalf("GenMarkdownTree failed: %v", err)
 	}
 
 	indexPath := filepath.Join(tempDir, "index.md")
@@ -594,11 +626,11 @@ $ myproject process --format json input.txt`,
 	if !strings.Contains(indexStr, "# myproject (CLI)") {
 		t.Errorf("index missing header: %s", indexStr)
 	}
-	if !strings.Contains(indexStr, "myproject-process.rst") {
+	if !strings.Contains(indexStr, "myproject-process.md") {
 		t.Errorf("index missing process command reference: %s", indexStr)
 	}
 
-	processPath := filepath.Join(tempDir, "myproject-process.rst")
+	processPath := filepath.Join(tempDir, "myproject-process.md")
 	fileExists(t, processPath)
 	processContent, err := os.ReadFile(processPath)
 	if err != nil {

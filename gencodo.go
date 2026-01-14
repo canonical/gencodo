@@ -20,6 +20,7 @@ package gencodo
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -55,6 +56,25 @@ type TemplateInfo struct {
 	IndexFileName         string // Name of the generated index file
 	IndexTemplate         string // Template for the index file
 	SingleCommandTemplate string // Template for individual command files
+}
+
+// format is the output format for generated docs.
+type format int
+
+const (
+	formatMarkdown format = iota
+	formatRST
+)
+
+func (f format) FileExtension() string {
+	switch f {
+	case formatMarkdown:
+		return ".md"
+	case formatRST:
+		return ".rst"
+	default:
+		panic(fmt.Sprintf("unknown format: %d", f))
+	}
 }
 
 // GenDocs generates docs for a single command in an eponymous file.
@@ -151,13 +171,34 @@ func GenDocs(cmd *cobra.Command, w io.Writer, templateContent string, linkHandle
 	return err
 }
 
-// GenDocsTree generates docs for a subcommand tree, skipping the root.
-func GenDocsTree(
+func GenMarkdownTree(
 	cmd *cobra.Command,
 	dir string,
 	templates TemplateInfo,
 	filePrepender func(string) string,
 	linkHandler func(string, string) string,
+) error {
+	return genDocsTree(cmd, dir, templates, filePrepender, linkHandler, formatMarkdown)
+}
+
+func GenRSTTree(
+	cmd *cobra.Command,
+	dir string,
+	templates TemplateInfo,
+	filePrepender func(string) string,
+	linkHandler func(string, string) string,
+) error {
+	return genDocsTree(cmd, dir, templates, filePrepender, linkHandler, formatRST)
+}
+
+// genDocsTree generates docs for a subcommand tree, skipping the root.
+func genDocsTree(
+	cmd *cobra.Command,
+	dir string,
+	templates TemplateInfo,
+	filePrepender func(string) string,
+	linkHandler func(string, string) string,
+	format format,
 ) error {
 	var files []string
 
@@ -173,7 +214,7 @@ func GenDocsTree(
 			}
 		}
 
-		basename := strings.ReplaceAll(c.CommandPath(), " ", "-") + ".rst"
+		basename := strings.ReplaceAll(c.CommandPath(), " ", "-") + format.FileExtension()
 		filename := filepath.Join(dir, basename)
 		f, err := os.Create(filename)
 		if err != nil {
