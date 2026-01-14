@@ -7,24 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-01-14
+
 ### Added
-- Custom GitHub Copilot agents for design, engineering, and CI/CD guidance
-- `GenRSTTree()` - Generate documentation with `.rst` file extension
-- `GenMarkdownTree()` - Generate documentation with `.md` file extension
-- Support for Markdown documentation format
-- Comprehensive test coverage for both RST and Markdown formats
+- `GenRSTTree()` and `GenMarkdownTree()` for format-specific documentation generation
+- Custom GitHub Copilot agents for development guidance
 
 ### Changed
-- **BREAKING**: `GenDocsTree()` is now unexported (`genDocsTree()`)
-  - Migration: Use `GenRSTTree()` for reStructuredText or `GenMarkdownTree()` for Markdown
-  - Previous code using `GenDocsTree()` will break and must be updated
-- **BREAKING**: Command ordering in generated documentation now preserves Cobra's order instead of alphabetical sorting
-  - Documentation files now appear in the order commands were added via `AddCommand()`
-  - Respects `cobra.EnableCommandSorting` setting
-  - Users wanting alphabetical order should enable Cobra's command sorting
+- **BREAKING**: `GenDocsTree()` replaced by `GenRSTTree()` and `GenMarkdownTree()`
+- **BREAKING**: Command ordering now preserves Cobra's order instead of alphabetical sorting
 
 ### Fixed
-- Loop variable capture in parallel tests to prevent race conditions
+- Loop variable capture in parallel tests
 
 ## [0.1.1] - 2025-02-28
 
