@@ -131,6 +131,7 @@ func TestGenDocTree(t *testing.T) {
 	}
 
 	for name, tc := range tests {
+		tc := tc // Capture loop variable for parallel test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -173,6 +174,7 @@ func TestGenDocTreeNested(t *testing.T) {
 	}
 
 	for name, tc := range tests {
+		tc := tc // Capture loop variable for parallel test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
