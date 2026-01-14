@@ -1,4 +1,4 @@
-.PHONY: all build test test-verbose clean fmt vet lint install help
+.PHONY: all build test test-verbose clean fmt vet lint install release help
 
 # Default target
 all: fmt vet test
@@ -58,6 +58,28 @@ clean:
 	@rm -f coverage.out coverage.html
 	@go clean
 
+# Release a new version (requires VERSION=vX.Y.Z)
+release:
+ifndef VERSION
+	@echo "Error: VERSION is required. Usage: make release VERSION=v0.1.4"
+	@exit 1
+endif
+	@echo "Checking version format..."
+	@if ! echo "$(VERSION)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+'; then \
+		echo "Error: VERSION must follow format vX.Y.Z (e.g., v0.1.4)"; \
+		exit 1; \
+	fi
+	@echo "Running tests before release..."
+	@$(MAKE) test
+	@echo "Creating tag $(VERSION)..."
+	@git tag -a $(VERSION) -m "Release $(VERSION)"
+	@echo "Pushing tag $(VERSION) to origin..."
+	@git push origin $(VERSION)
+	@echo "Triggering Go proxy indexing..."
+	@GOPROXY=proxy.golang.org go list -m github.com/canonical/gencodo@$(VERSION) || true
+	@echo "Release $(VERSION) complete!"
+	@echo "Users can now install with: go get github.com/canonical/gencodo@$(VERSION)"
+
 # Show help
 help:
 	@echo "Available targets:"
@@ -73,4 +95,5 @@ help:
 	@echo "  deps           - Download dependencies"
 	@echo "  tidy           - Tidy dependencies"
 	@echo "  clean          - Clean build artifacts"
+	@echo "  release        - Create and push a new release tag (requires VERSION=vX.Y.Z)"
 	@echo "  help           - Show this help message"
