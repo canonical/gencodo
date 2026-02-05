@@ -31,26 +31,112 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// FlagInfo holds metadata about a CLI flag.
+// FlagInfo holds metadata about a CLI flag extracted from Cobra commands.
+// Only non-inherited flags are included (flags defined directly on the command,
+// not persistent flags from parent commands).
+//
+// Example usage in templates:
+//
+//	{{- range .Flags }}
+//	--{{ .Name }}    {{ .Usage }}
+//	  Default: {{ .DefaultValue }}
+//	{{- end }}
+//
+// The DefaultValue field contains the flag's string representation as shown
+// in help text (e.g., "false" for booleans, "[]" for empty slices).
 type FlagInfo struct {
 	Name         string // Flag name
 	Usage        string // Description of the flag
 	DefaultValue string // Default value of the flag
 }
 
-// ExampleInfo represents an example usage of a command to be used in templates.
+// ExampleInfo represents a parsed example from a Cobra command's example string.
+// Examples are split into separate Info (description) and Usage (command) fields
+// based on the ExampleParser configuration.
+//
+// Cobra's Example field typically contains multi-line strings like:
+//
+//	"Display help for this command:\n  $ myapp help\n\nList available resources:\n  $ myapp list"
+//
+// ExampleParser splits this by double newlines (\n\n) and identifies command lines
+// via prefixes (e.g., "$") or indentation. The result is:
+//
+//	[]ExampleInfo{
+//	    {Info: "Display help for this command:", Usage: "myapp help"},
+//	    {Info: "List available resources:", Usage: "myapp list"},
+//	}
+//
+// If no command line is detected, the entire block becomes Usage with empty Info.
 type ExampleInfo struct {
 	Info  string // Description of the example
 	Usage string // Example command usage
 }
 
-// ExampleParser configures how examples are parsed from command example strings.
+// ExampleParser configures how examples are parsed from Cobra command example strings.
+// It splits example text by double newlines (\n\n) and identifies command lines
+// using prefixes or indentation heuristics.
+//
+// Default behavior (zero values):
+//   - CommandPrefixes: ["$", ">", "#"] (common shell prompts)
+//   - MinIndent: 2 (lines indented ≥2 spaces are considered commands)
+//
+// The parser first checks for CommandPrefixes. If a line starts with any prefix
+// (after trimming leading whitespace), it's treated as a command. The prefix and
+// following space are removed from the Usage field.
+//
+// If no prefix matches and MinIndent > 0, lines with indentation ≥ MinIndent are
+// considered commands. Indentation is preserved in the Usage field.
+//
+// Example - Shell commands only:
+//
+//	parser := ExampleParser{CommandPrefixes: []string{"$"}, MinIndent: 0}
+//	examples := parser.Parse(cmd.Example)
+//
+// Example - Indented code blocks without prefixes:
+//
+//	parser := ExampleParser{MinIndent: 4}
+//	examples := parser.Parse(cmd.Example)
+//
+// Example - Windows PowerShell prompts:
+//
+//	parser := ExampleParser{CommandPrefixes: []string{"PS>", "C:\\>"}}
+//	examples := parser.Parse(cmd.Example)
 type ExampleParser struct {
 	CommandPrefixes []string // Prefixes that indicate command lines (e.g., "$", ">", "#")
 	MinIndent       int      // Minimum indentation to consider a line as a command
 }
 
-// TemplateInfo stores templates used for documentation generation.
+// TemplateInfo stores Go templates for generating documentation from Cobra commands.
+// All fields are required and validated via the Validate() method.
+//
+// Templates use Go's text/template syntax and have access to different data structures:
+//
+// IndexTemplate receives:
+//   - .Files ([]string): Alphabetically sorted list of generated command filenames
+//
+// SingleCommandTemplate receives:
+//   - .Ref (string): Reference ID (command name with spaces → underscores)
+//   - .CommandName (string): Full command path (e.g., "myapp subcommand")
+//   - .Short (string): Short description
+//   - .Long (string): Long description (falls back to .Short if empty)
+//   - .Synopsis (string): Command usage line from Cobra
+//   - .Examples ([]ExampleInfo): Parsed examples
+//   - .Flags ([]FlagInfo): Non-inherited flags only
+//   - .HeadingLen (int): Length of CommandName (for formatting)
+//   - .RelatedCommands ([]string): From Annotations["related"] (comma-separated)
+//
+// Example - Simple Markdown template:
+//
+//	templateInfo := TemplateInfo{
+//	    IndexFileName: "index.md",
+//	    IndexTemplate: "# Commands\n{{range .Files}}- [{{.}}]({{.}})\n{{end}}",
+//	    SingleCommandTemplate: "# {{.CommandName}}\n\n{{.Long}}\n",
+//	}
+//	if err := templateInfo.Validate(); err != nil {
+//	    return err
+//	}
+//
+// For complete examples, see examples/command.md and examples/command.rst in the repository.
 type TemplateInfo struct {
 	IndexFileName         string // Name of the generated index file
 	IndexTemplate         string // Template for the index file
