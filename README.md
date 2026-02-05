@@ -37,19 +37,18 @@ import (
 )
 
 // For Markdown documentation
-gencodo.GenMarkdownTree(rootCmd, "docs", templates, filePrepender, linkHandler)
+gencodo.GenMarkdownTree(rootCmd, "docs", templates, filePrepender)
 
 // For reStructuredText documentation
-gencodo.GenRSTTree(rootCmd, "docs", templates, filePrepender, linkHandler)
+gencodo.GenRSTTree(rootCmd, "docs", templates, filePrepender)
 ```
 
 - `rootCmd`: Your Cobra root command.
 - `docs`: Output directory for documentation files.
 - `templates`: `TemplateInfo` struct containing your custom templates for index and command files.
 - `filePrepender`: Function to prepend headers to files.
-- `linkHandler`: Function to handle internal links.
 
-These arguments are in line with [Cobra's own implementation](https://umarcor.github.io/cobra/#generating-restructured-text-docs-for-your-own-cobracommand);
+These arguments are similar to [Cobra's own implementation](https://umarcor.github.io/cobra/#generating-restructured-text-docs-for-your-own-cobracommand);
 the main addition is `templates`, which provides custom templates for documentation formatting.
 
 One way to add them to your code is [embedding](https://pkg.go.dev/embed), for instance:

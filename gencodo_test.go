@@ -81,7 +81,7 @@ $ example bar`,
 	}
 	var output bytes.Buffer
 	templateContent := `{{ .CommandName }}|{{ .Short }}|{{ .Long }}{{ range .Examples }}|{{ .Info }}|{{ .Usage }}{{ end }}{{ range .RelatedCommands }}|{{ . | replaceSpaces }}{{ end }}`
-	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestGenDocsEmptyExample(t *testing.T) {
 	}
 	var output bytes.Buffer
 	templateContent := `{{ .CommandName }}|{{ .Short }}|{{ .Long }}|`
-	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestGenDocsIndentRepeat(t *testing.T) {
 	}
 	var output bytes.Buffer
 	templateContent := `{{ indent 2 .CommandName }}{{ repeat "X" 3 }}`
-	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestGenDocsIndentRepeat(t *testing.T) {
 
 func TestGenDocTree(t *testing.T) {
 	tests := map[string]struct {
-		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string, func(string, string) string) error
+		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string) error
 		fileExtension string
 	}{
 		"TestGenRSTTree":      {GenRSTTree, ".rst"},
@@ -155,7 +155,7 @@ func TestGenDocTree(t *testing.T) {
 				IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
 				SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
 			}
-			err := tc.genDocFunc(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+			err := tc.genDocFunc(rootCmd, tempDir, templates, func(s string) string { return "" })
 			if err != nil {
 				t.Fatalf("genDocFunc failed: %v", err)
 			}
@@ -168,7 +168,7 @@ func TestGenDocTree(t *testing.T) {
 
 func TestGenDocTreeNested(t *testing.T) {
 	tests := map[string]struct {
-		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string, func(string, string) string) error
+		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string) error
 		fileExtension string
 	}{
 		"TestGenRSTTree":      {GenRSTTree, ".rst"},
@@ -193,7 +193,7 @@ func TestGenDocTreeNested(t *testing.T) {
 				IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
 				SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
 			}
-			err := tc.genDocFunc(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+			err := tc.genDocFunc(rootCmd, tempDir, templates, func(s string) string { return "" })
 			if err != nil {
 				t.Fatalf("GenRSTTree failed: %v", err)
 			}
@@ -229,7 +229,7 @@ func TestGenDocsTreeNonExistentDir(t *testing.T) {
 	}
 
 	// Should succeed even though directory doesn't exist
-	err := GenRSTTree(rootCmd, outputDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenRSTTree(rootCmd, outputDir, templates, func(s string) string { return "" })
 	if err != nil {
 		t.Fatalf("GenRSTTree should create directory, but failed: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestGenDocsTreeEmptyTemplateInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := GenRSTTree(rootCmd, tempDir, tt.templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+			err := GenRSTTree(rootCmd, tempDir, tt.templates, func(s string) string { return "" })
 			if err == nil {
 				t.Fatal("expected error for empty template field, got nil")
 			}
@@ -303,7 +303,7 @@ func TestGenDocsFlags(t *testing.T) {
 
 	var output bytes.Buffer
 	templateContent := `{{ range .Flags }}{{ .Name }}:{{ .Usage }}:{{ .DefaultValue }}|{{ end }}`
-	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestGenDocsSynopsis(t *testing.T) {
 	}
 	var output bytes.Buffer
 	templateContent := `{{ .Synopsis }}`
-	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestGenDocsRef(t *testing.T) {
 
 	var output bytes.Buffer
 	templateContent := `{{ .Ref }}`
-	err := GenDocs(subCmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(subCmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -365,7 +365,7 @@ func TestGenDocsLongFallback(t *testing.T) {
 	}
 	var output bytes.Buffer
 	templateContent := `{{ .Short }}|{{ .Long }}`
-	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestGenDocsFilePrepender(t *testing.T) {
 		SingleCommandTemplate: `Content`,
 	}
 
-	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return headerContent }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return headerContent })
 	if err != nil {
 		t.Fatalf("GenRSTTree failed: %v", err)
 	}
@@ -421,7 +421,7 @@ func TestGenDocsIndexContent(t *testing.T) {
 		SingleCommandTemplate: `{{ .CommandName }}`,
 	}
 
-	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" })
 	if err != nil {
 		t.Fatalf("GenRSTTree failed: %v", err)
 	}
@@ -447,7 +447,7 @@ func TestGenDocsInvalidTemplate(t *testing.T) {
 	}
 	var output bytes.Buffer
 	invalidTemplate := `{{ .CommandName `
-	err := GenDocs(cmd, &output, invalidTemplate, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, invalidTemplate)
 	if err == nil {
 		t.Fatal("expected error for invalid template, got nil")
 	}
@@ -465,7 +465,7 @@ func TestGenRSTTreeInvalidIndexTemplate(t *testing.T) {
 		SingleCommandTemplate: `{{ .CommandName }}`,
 	}
 
-	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" })
 	if err == nil {
 		t.Fatal("expected error for invalid index template, got nil")
 	}
@@ -498,7 +498,7 @@ func TestGenDocsPanicRecovery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var output bytes.Buffer
-			err := GenDocs(cmd, &output, tt.template, func(cmdPath, _ string) string { return cmdPath })
+			err := GenDocs(cmd, &output, tt.template)
 			if err == nil {
 				t.Error("expected error for template accessing non-existent field, got nil")
 			}
@@ -540,7 +540,7 @@ func TestGenDocsTreePanicRecovery(t *testing.T) {
 				SingleCommandTemplate: tt.cmdTemplate,
 			}
 
-			err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+			err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" })
 			if err == nil {
 				t.Error("expected error for template with non-existent field, got nil")
 			}
@@ -558,7 +558,7 @@ func TestGenDocsReplaceSpacesFunction(t *testing.T) {
 	}
 	var output bytes.Buffer
 	templateContent := `{{ range .RelatedCommands }}{{ . | replaceSpaces }}|{{ end }}`
-	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -576,7 +576,7 @@ func TestGenDocsHeadingLen(t *testing.T) {
 	}
 	var output bytes.Buffer
 	templateContent := `{{ .HeadingLen }}`
-	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -593,7 +593,7 @@ func TestGenDocsNoRelatedCommands(t *testing.T) {
 	}
 	var output bytes.Buffer
 	templateContent := `{{ len .RelatedCommands }}`
-	err := GenDocs(cmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(cmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -619,7 +619,7 @@ func TestGenDocsNonInheritedFlags(t *testing.T) {
 
 	var output bytes.Buffer
 	templateContent := `{{ range .Flags }}{{ .Name }}|{{ end }}`
-	err := GenDocs(subCmd, &output, templateContent, func(cmdPath, _ string) string { return cmdPath })
+	err := GenDocs(subCmd, &output, templateContent)
 	if err != nil {
 		t.Fatalf("GenDocs failed: %v", err)
 	}
@@ -674,8 +674,7 @@ $ myproject process --format json input.txt`,
 	}
 
 	err = GenRSTTree(rootCmd, tempDir, templates,
-		func(s string) string { return "" },
-		func(cmdPath, _ string) string { return cmdPath })
+		func(s string) string { return "" })
 	if err != nil {
 		t.Fatalf("GenRSTTree failed: %v", err)
 	}
@@ -773,8 +772,7 @@ $ myproject process --format json input.txt`,
 	}
 
 	err = GenMarkdownTree(rootCmd, tempDir, templates,
-		func(s string) string { return "" },
-		func(cmdPath, _ string) string { return cmdPath })
+		func(s string) string { return "" })
 	if err != nil {
 		t.Fatalf("GenMarkdownTree failed: %v", err)
 	}
@@ -1112,7 +1110,7 @@ $ test --flag value`,
 			cmd.Flags().String("output", "stdout", "Output destination")
 
 			var buf bytes.Buffer
-			if err := GenDocs(cmd, &buf, template, func(cmdPath, _ string) string { return cmdPath }); err != nil {
+			if err := GenDocs(cmd, &buf, template); err != nil {
 				t.Errorf("concurrent GenDocs iteration %d failed: %v", iteration, err)
 				return
 			}
@@ -1167,8 +1165,7 @@ func TestGenDocsTreeConcurrent(t *testing.T) {
 			// Each goroutine uses its own subdirectory
 			outputDir := filepath.Join(tempDir, fmt.Sprintf("docs-%d", iteration))
 			err := GenRSTTree(rootCmd, outputDir, templates,
-				func(s string) string { return "" },
-				func(cmdPath, _ string) string { return cmdPath })
+				func(s string) string { return "" })
 			if err != nil {
 				t.Errorf("concurrent GenRSTTree iteration %d failed: %v", iteration, err)
 				return

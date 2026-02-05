@@ -177,7 +177,7 @@ func (f format) FileExtension() string {
 }
 
 // GenDocs generates docs for a single command in an eponymous file.
-func GenDocs(cmd *cobra.Command, w io.Writer, templateContent string, linkHandler func(string, string) string) error {
+func GenDocs(cmd *cobra.Command, w io.Writer, templateContent string) error {
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
 
@@ -278,9 +278,8 @@ func GenMarkdownTree(
 	dir string,
 	templates TemplateInfo,
 	filePrepender func(string) string,
-	linkHandler func(string, string) string,
 ) error {
-	return genDocsTree(cmd, dir, templates, filePrepender, linkHandler, formatMarkdown)
+	return genDocsTree(cmd, dir, templates, filePrepender, formatMarkdown)
 }
 
 func GenRSTTree(
@@ -288,9 +287,8 @@ func GenRSTTree(
 	dir string,
 	templates TemplateInfo,
 	filePrepender func(string) string,
-	linkHandler func(string, string) string,
 ) error {
-	return genDocsTree(cmd, dir, templates, filePrepender, linkHandler, formatRST)
+	return genDocsTree(cmd, dir, templates, filePrepender, formatRST)
 }
 
 // genDocsTree generates docs for a subcommand tree, skipping the root.
@@ -299,7 +297,6 @@ func genDocsTree(
 	dir string,
 	templates TemplateInfo,
 	filePrepender func(string) string,
-	linkHandler func(string, string) string,
 	format format,
 ) error {
 	// Validate template configuration
@@ -331,7 +328,7 @@ func genDocsTree(
 		if _, err := io.WriteString(f, filePrepender(filename)); err != nil {
 			return err
 		}
-		if err := GenDocs(c, f, templates.SingleCommandTemplate, linkHandler); err != nil {
+		if err := GenDocs(c, f, templates.SingleCommandTemplate); err != nil {
 			return err
 		}
 
