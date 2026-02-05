@@ -49,7 +49,7 @@ gencodo.GenRSTTree(rootCmd, "docs", templates, filePrepender)
 - `filePrepender`: Function to prepend headers to files.
 
 These arguments are similar to [Cobra's own implementation](https://umarcor.github.io/cobra/#generating-restructured-text-docs-for-your-own-cobracommand);
-the main addition is `templates`, which provides custom templates for documentation formatting.
+the main addition is `templates`, which provides custom templates for documentation formatting. Link formatting is handled directly in your templates; no separate link handler callback is needed.
 
 One way to add them to your code is [embedding](https://pkg.go.dev/embed), for instance:
 

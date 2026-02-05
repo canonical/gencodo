@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-02-05
+
+### Added
+- Panic recovery around template execution to turn panics into errors
+- Concurrent usage test coverage and `make test-race` target
+- Comprehensive GoDoc for exported types (`FlagInfo`, `ExampleInfo`, `ExampleParser`, `TemplateInfo`)
+
+### Changed
+- **BREAKING**: Removed the unused `linkHandler` parameter from `GenDocs`, `GenMarkdownTree`, and `GenRSTTree`; link formatting now lives entirely in templates
+
 ## [0.1.3] - 2026-01-14
 
 ### Added
