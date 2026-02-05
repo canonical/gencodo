@@ -211,7 +211,7 @@ func TestGenDocsTreeNonExistentDir(t *testing.T) {
 	tempDir := t.TempDir()
 	// Create a nested path that doesn't exist
 	outputDir := filepath.Join(tempDir, "docs", "cli", "commands")
-	
+
 	rootCmd := &cobra.Command{Use: "app"}
 	subCmd := &cobra.Command{
 		Use:   "test",
@@ -219,19 +219,19 @@ func TestGenDocsTreeNonExistentDir(t *testing.T) {
 		Run:   func(cmd *cobra.Command, args []string) {},
 	}
 	rootCmd.AddCommand(subCmd)
-	
+
 	templates := TemplateInfo{
 		IndexFileName:         "index.rst",
 		IndexTemplate:         `{{ range .Files }}{{ . }}{{ end }}`,
 		SingleCommandTemplate: `{{ .CommandName }}`,
 	}
-	
+
 	// Should succeed even though directory doesn't exist
 	err := GenRSTTree(rootCmd, outputDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
 	if err != nil {
 		t.Fatalf("GenRSTTree should create directory, but failed: %v", err)
 	}
-	
+
 	// Verify directory was created and files exist
 	fileExists(t, filepath.Join(outputDir, "index.rst"))
 	fileExists(t, filepath.Join(outputDir, "app-test.rst"))
@@ -466,6 +466,83 @@ func TestGenRSTTreeInvalidIndexTemplate(t *testing.T) {
 	err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
 	if err == nil {
 		t.Fatal("expected error for invalid index template, got nil")
+	}
+}
+
+func TestGenDocsPanicRecovery(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:   "test",
+		Short: "Test command",
+	}
+
+	tests := []struct {
+		name     string
+		template string
+	}{
+		{
+			name:     "missing field access",
+			template: `{{ .NonExistentField }}`,
+		},
+		{
+			name:     "nested missing field",
+			template: `{{ .Foo.Bar.Baz }}`,
+		},
+		{
+			name:     "method on missing field",
+			template: `{{ .NonExistent.Method }}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var output bytes.Buffer
+			err := GenDocs(cmd, &output, tt.template, func(cmdPath, _ string) string { return cmdPath })
+			if err == nil {
+				t.Error("expected error for template accessing non-existent field, got nil")
+			}
+			if !strings.Contains(err.Error(), "can't evaluate field") && !strings.Contains(err.Error(), "panic") {
+				t.Errorf("expected error message about field evaluation, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestGenDocsTreePanicRecovery(t *testing.T) {
+	tempDir := t.TempDir()
+	rootCmd := &cobra.Command{Use: "root"}
+	subCmd := &cobra.Command{Use: "sub", Short: "Sub", Run: func(cmd *cobra.Command, args []string) {}}
+	rootCmd.AddCommand(subCmd)
+
+	tests := []struct {
+		name          string
+		indexTemplate string
+		cmdTemplate   string
+	}{
+		{
+			name:          "invalid index template field",
+			indexTemplate: `{{ .NonExistentField }}`,
+			cmdTemplate:   `{{ .CommandName }}`,
+		},
+		{
+			name:          "invalid command template field",
+			indexTemplate: `{{ range .Files }}{{ . }}{{ end }}`,
+			cmdTemplate:   `{{ .Foo.Bar }}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			templates := TemplateInfo{
+				IndexFileName:         "index.rst",
+				IndexTemplate:         tt.indexTemplate,
+				SingleCommandTemplate: tt.cmdTemplate,
+			}
+
+			err := GenRSTTree(rootCmd, tempDir, templates, func(s string) string { return "" }, func(cmdPath, _ string) string { return cmdPath })
+			if err == nil {
+				t.Error("expected error for template with non-existent field, got nil")
+			}
+		})
 	}
 }
 

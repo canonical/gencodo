@@ -170,13 +170,16 @@ func GenDocs(cmd *cobra.Command, w io.Writer, templateContent string, linkHandle
 		},
 	}
 
-	tmpl, err := template.New("command").Funcs(funcMap).Parse(templateContent)
+	tmpl, err := template.New("command").
+		Option("missingkey=error").
+		Funcs(funcMap).
+		Parse(templateContent)
 	if err != nil {
 		return err
 	}
 
 	buf := new(bytes.Buffer)
-	if err = tmpl.Execute(buf, data); err != nil {
+	if err = executeTemplate(tmpl, buf, data); err != nil {
 		return err
 	}
 
@@ -269,7 +272,9 @@ func genDocsTree(
 		Files: files,
 	}
 
-	tmpl, err := template.New("index").Parse(templates.IndexTemplate)
+	tmpl, err := template.New("index").
+		Option("missingkey=error").
+		Parse(templates.IndexTemplate)
 	if err != nil {
 		return err
 	}
@@ -281,11 +286,23 @@ func genDocsTree(
 	}
 	defer indexFile.Close()
 
-	if err := tmpl.Execute(indexFile, data); err != nil {
+	if err := executeTemplate(tmpl, indexFile, data); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// executeTemplate safely executes a template with panic recovery.
+// It recovers from panics during template execution and converts them to errors.
+func executeTemplate(tmpl *template.Template, w io.Writer, data interface{}) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("template execution panic: %v", r)
+		}
+	}()
+	err = tmpl.Execute(w, data)
+	return err
 }
 
 // Parse extracts structured examples from a raw example string.
