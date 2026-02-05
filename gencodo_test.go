@@ -20,9 +20,11 @@ package gencodo
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -1083,4 +1085,102 @@ $ mycommand arg`
 	if results[0].Info != expectedInfo {
 		t.Errorf("expected info '%s', got '%s'", expectedInfo, results[0].Info)
 	}
+}
+
+func TestGenDocsConcurrent(t *testing.T) {
+	template := `{{ .CommandName }}|{{ .Short }}|{{ .Long }}{{ range .Flags }}|{{ .Name }}{{ end }}`
+
+	const goroutines = 50
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	// Run multiple GenDocs calls concurrently
+	// Each goroutine creates its own command instance to avoid sharing state
+	for i := 0; i < goroutines; i++ {
+		go func(iteration int) {
+			defer wg.Done()
+
+			// Create fresh command instance for each goroutine
+			// (Cobra commands are not safe to share across goroutines)
+			cmd := &cobra.Command{
+				Use:   "test",
+				Short: "Test command",
+				Long:  "A longer description for testing",
+				Example: `Example usage:
+$ test --flag value`,
+			}
+			cmd.Flags().String("output", "stdout", "Output destination")
+
+			var buf bytes.Buffer
+			if err := GenDocs(cmd, &buf, template, func(cmdPath, _ string) string { return cmdPath }); err != nil {
+				t.Errorf("concurrent GenDocs iteration %d failed: %v", iteration, err)
+				return
+			}
+			// Verify output contains expected content (help flag is added by Cobra)
+			result := buf.String()
+			if !strings.Contains(result, "test|Test command|A longer description for testing") {
+				t.Errorf("iteration %d: output missing expected content: %s", iteration, result)
+			}
+			if !strings.Contains(result, "output") {
+				t.Errorf("iteration %d: output missing 'output' flag: %s", iteration, result)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+func TestGenDocsTreeConcurrent(t *testing.T) {
+	tempDir := t.TempDir()
+
+	templates := TemplateInfo{
+		IndexFileName:         "index.rst",
+		IndexTemplate:         `{{ range .Files }}{{ . }}\n{{ end }}`,
+		SingleCommandTemplate: `{{ .CommandName }} - {{ .Short }}`,
+	}
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	// Run multiple GenRSTTree calls concurrently to different directories
+	// Each goroutine creates its own command tree to avoid sharing state
+	for i := 0; i < goroutines; i++ {
+		go func(iteration int) {
+			defer wg.Done()
+
+			// Create fresh command instances for each goroutine
+			// (Cobra commands are not safe to share across goroutines)
+			rootCmd := &cobra.Command{Use: "app"}
+			subCmd1 := &cobra.Command{
+				Use:   "sub1",
+				Short: "Subcommand 1",
+				Run:   func(cmd *cobra.Command, args []string) {},
+			}
+			subCmd2 := &cobra.Command{
+				Use:   "sub2",
+				Short: "Subcommand 2",
+				Run:   func(cmd *cobra.Command, args []string) {},
+			}
+			rootCmd.AddCommand(subCmd1, subCmd2)
+
+			// Each goroutine uses its own subdirectory
+			outputDir := filepath.Join(tempDir, fmt.Sprintf("docs-%d", iteration))
+			err := GenRSTTree(rootCmd, outputDir, templates,
+				func(s string) string { return "" },
+				func(cmdPath, _ string) string { return cmdPath })
+			if err != nil {
+				t.Errorf("concurrent GenRSTTree iteration %d failed: %v", iteration, err)
+				return
+			}
+
+			// Verify files were created
+			indexPath := filepath.Join(outputDir, "index.rst")
+			if _, err := os.Stat(indexPath); err != nil {
+				t.Errorf("iteration %d: index file not created: %v", iteration, err)
+			}
+		}(i)
+	}
+
+	wg.Wait()
 }

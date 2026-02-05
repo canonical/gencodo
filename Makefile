@@ -13,6 +13,11 @@ test:
 	@echo "Running tests..."
 	@go test -v ./...
 
+# Run tests with race detector
+test-race:
+	@echo "Running tests with race detector..."
+	@go test -race -v ./...
+
 # Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
