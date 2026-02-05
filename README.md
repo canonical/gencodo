@@ -98,6 +98,15 @@ Gencodo requires two template types via the `TemplateInfo` struct:
 
 2. `IndexTemplate`: Template for the index/table of contents file. Used by `GenDocsTree()` to generate a single file listing all generated command documentation files. Receives a `Files` array containing all generated filenames. The output filename is set via `IndexFileName` in the `TemplateInfo` struct.
 
+## Release process (maintainers)
+
+1. Update docs: README and CHANGELOG (new version section, note breaking changes/migrations).
+2. Verify: `make` (fmt, vet, tests) and `make test-race`.
+3. Commit: include docs/CHANGELOG updates and test verification summary.
+4. Tag and push: `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`.
+5. Publish release notes on GitHub: summarize changes, call out breaking changes, include migration snippets (before/after call signatures).
+6. If applicable, remind users that Cobra commands are not thread-safe to share; use fresh command instances per goroutine.
+
 ## Contributing
 
 Contributions are welcome! Please submit a PR or open an issue for discussions.
