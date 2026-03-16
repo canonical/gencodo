@@ -305,7 +305,7 @@ func genDocsTree(
 	}
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -319,7 +319,7 @@ func genDocsTree(
 
 		basename := strings.ReplaceAll(c.CommandPath(), " ", "-") + format.FileExtension()
 		filename := filepath.Join(dir, basename)
-		f, err := os.Create(filename)
+		f, err := os.Create(filepath.Clean(filename))
 		if err != nil {
 			return err
 		}
@@ -363,7 +363,7 @@ func genDocsTree(
 	}
 
 	indexPath := filepath.Join(dir, templates.IndexFileName)
-	indexFile, err := os.Create(indexPath)
+	indexFile, err := os.Create(filepath.Clean(indexPath))
 	if err != nil {
 		return err
 	}
