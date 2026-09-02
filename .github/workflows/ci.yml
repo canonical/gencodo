@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: LGPL-3.0-only
+# Copyright 2025-2026 Canonical Ltd.
+
 name: CI
 
 on:
@@ -11,18 +14,21 @@ permissions:
 
 jobs:
   test:
+    name: Test (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        go-version: ['1.21', '1.22', '1.23']
+        # Minimum supported version (go.mod), previous stable, and current stable.
+        go-version: ['1.23', 'oldstable', 'stable']
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -39,4 +45,53 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test -race -v ./...
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Coverage summary
+        run: |
+          {
+            echo "### Coverage (Go ${{ matrix.go-version }})"
+            echo
+            echo '```'
+            go tool cover -func=coverage.out
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage profile
+        if: matrix.go-version == 'stable'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 14
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 'stable'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: latest
+
+  reuse:
+    name: REUSE compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: reuse lint
+        uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0

@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: LGPL-3.0-only
+# Copyright 2026 Canonical Ltd.
+
+# Coverage output from `make test-coverage`
+coverage.out
+coverage.html
+
+# Editor / OS
+*.swp
+.DS_Store

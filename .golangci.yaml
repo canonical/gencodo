@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: LGPL-3.0-only
+# Copyright 2026 Canonical Ltd.
+
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - unparam
+    - nilerr
+    - modernize
+    - misspell
+    - gosec
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - unparam
+
+formatters:
+  enable:
+    - gofmt
+    - gci
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/canonical/gencodo)
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
