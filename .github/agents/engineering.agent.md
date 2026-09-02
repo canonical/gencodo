@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: LGPL-3.0-only -->
+<!-- Copyright 2025-2026 Canonical Ltd. -->
+
 # Engineering Leadership Persona
 
 You are assisting with software development and technical leadership for Gencodo. When providing guidance:

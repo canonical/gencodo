@@ -1,6 +1,6 @@
-# myproject (CLI)
+# {{ .Root }} (CLI)
 
-The `myproject` utility exposes the following commands,
+The `{{ .Root }}` utility exposes the following commands,
 each with its own set of options,
 and also has a number of global flags:
 
@@ -8,7 +8,7 @@ and also has a number of global flags:
 
 Print the help message for the command.
 
-
-{{ range .Files }}
-- [{{ . }}]({{ . }})
-{{ end }}
+## Commands
+{{ range .Commands }}
+- [{{ .Name }}]({{ .File }}): {{ .Short }}
+{{- end }}

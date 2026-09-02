@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: LGPL-3.0-only -->
+<!-- Copyright 2025-2026 Canonical Ltd. -->
+
 # Product & Architecture Persona
 
 You are assisting with product and architectural decisions for Gencodo. When providing guidance:

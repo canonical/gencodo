@@ -1,9 +1,9 @@
-.. _ref_myproject_cli:
+.. _ref_{{ .Root }}_cli:
 
-myproject (CLI)
-===============
+{{ .Root }} (CLI)
+{{ repeat "=" (len .Root) }}======
 
-The :program:`myproject` utility exposes the following commands,
+The :program:`{{ .Root }}` utility exposes the following commands,
 each with its own set of options,
 and also has a number of global flags:
 
@@ -11,8 +11,11 @@ and also has a number of global flags:
 
    Print the help message for the command.
 
+.. rubric:: Commands
+{{ range .Commands }}
+- :ref:`{{ .Ref }}`: {{ .Short }}
+{{- end }}
 
 {{ range .Files }}
 .. include:: {{ . }}
-
 {{ end }}

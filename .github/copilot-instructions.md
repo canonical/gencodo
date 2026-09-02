@@ -1,10 +1,13 @@
+<!-- SPDX-License-Identifier: LGPL-3.0-only -->
+<!-- Copyright 2025-2026 Canonical Ltd. -->
+
 # GitHub Copilot Instructions for Gencodo
 
 ## Project Overview
 
 Gencodo is a **Go library** (not an application) that generates format-agnostic documentation from Cobra CLI applications using Go templates. It's distributed as `github.com/canonical/gencodo` and consumed by other projects via `go get`.
 
-**Key architectural principle**: Flexibility through Go templates - users provide their own templates (Markdown, reST, JSON, etc.), Gencodo extracts structured data from Cobra commands.
+**Key architectural principle**: Flexibility through Go templates - users provide their own templates (Markdown, reST, JSON, etc.), Gencodo extracts structured data from Cobra commands. Prefer exposing data to templates over adding logic to the library.
 
 ## Copilot Agents
 
@@ -19,99 +22,36 @@ Invoke agents by referencing them in your prompts (e.g., "@design help me priori
 ## Code Structure & Core Components
 
 ### Main Public API (`gencodo.go`)
-- **`GenDocs()`**: Generates documentation for a single command to an `io.Writer`
-- **`GenDocsTree()`**: Recursively generates docs for all subcommands, creates index file
+- **`GenDocs(cmd, w, template, opts...)`**: Generates documentation for a single command to an `io.Writer`
+- **`GenMarkdownTree` / `GenRSTTree(cmd, dir, templates, filePrepender, opts...)`**: Recursively generate docs for all subcommands (skipping the root, hidden/deprecated commands, and help topics) and create an index file
+- **`ValidateTemplates(templates, opts...)`**: Renders both templates against synthetic data without writing files
+- **Options**: `WithExampleParser`, `WithFuncs`, `WithDryRun`, `WithHiddenFlags`, `WithoutHelpFlag` (type `Option func(*config)`)
 - **`ExampleParser`**: Configurable parser that extracts structured examples from Cobra's example strings
-  - Splits by `\n\n` (double newlines) into separate examples
-  - Detects command lines via prefixes (`$`, `>`, `#`) or indentation (≥2 spaces by default)
-  - Returns `[]ExampleInfo` with separate `Info` (description) and `Usage` (command) fields
+  - Splits by `BlockSeparator` (default `\n\n`) into separate examples
+  - Detects command lines via `CommandPrefixes` (`$`, `>`, `#`) or indentation (`MinIndent`, default 2; `DisableIndentDetection` turns it off)
+  - Returns `[]ExampleInfo` with separate `Info` (description) and `Usage` (command, verbatim) fields
+- Internals: `config` (options), `commandData` (extraction), `genDocs` (render to buffer), `genDocsTree` (walk + write), `builtinFuncs` (template helpers). Files are rendered in memory and written with `os.WriteFile` only on success.
 
 ### Data Structures Exposed to Templates
-```go
-// Available in SingleCommandTemplate:
-.Ref             // e.g., "ref_myapp_subcommand" (spaces → underscores)
-.CommandName     // Full command path, e.g., "myapp subcommand"
-.Short           // Short description
-.Long            // Long description (falls back to .Short if empty)
-.Synopsis        // Command usage line from Cobra
-.Examples        // []ExampleInfo (structured, parsed examples)
-.Flags           // []FlagInfo (non-inherited flags only)
-.HeadingLen      // Length of CommandName (for formatting)
-.RelatedCommands // []string from Annotations["related"] (comma-separated)
-
-// Available in IndexTemplate:
-.Files           // []string (generated filenames, sorted alphabetically)
-```
+- `CommandData` (SingleCommandTemplate): `.Ref`, `.CommandName`, `.File`, `.Short`, `.Long`, `.Synopsis`, `.HeadingLen`, `.Examples`, `.Flags`, `.InheritedFlags`, `.Subcommands`, `.Parent`, `.Aliases`, `.Deprecated`, `.Runnable`, `.RelatedCommands`, `.Annotations`
+- `FlagInfo`: `.Name`, `.Shorthand`, `.Usage`, `.DefaultValue`, `.Type`, `.NoOptDefVal`, `.Deprecated`, `.ShorthandDeprecated`, `.Hidden`, `.Required`, `.SetByCobra`
+- `IndexData` (IndexTemplate): `.Root`, `.Files`, `.Commands` (each `CommandSummary`: `.Name`, `.Short`, `.Ref`, `.File`)
+- Order of files/commands follows Cobra's `Commands()` order, depth-first (not alphabetically sorted by gencodo)
 
 ### Template Functions
-- `indent <spaces> <strings...>`: Indents multi-line strings
-- `repeat <count> <string>`: Repeats a string N times
-- `replaceSpaces <string>`: Replaces spaces with underscores (used for filenames)
+Built-ins (string argument last, pipeline-friendly): `indent`, `repeat`, `replaceSpaces`, `slug`, `anchor`, `titleCase`, `trimPrefix`, `trimSuffix`, `trimSpace`, `lower`, `upper`, `join`, `replace`. Users add more with `WithFuncs`. Both templates get the same function map and run with `missingkey=error`.
 
 ## Development Workflow
 
-### Building & Testing
-```bash
-make              # Default: fmt + vet + test
-make test         # Run all tests
-make test-coverage # Generate coverage.html report
-make fmt          # Format code (required before commits)
-make vet          # Static analysis
-```
+- `make` runs fmt, vet, lint (golangci-lint v2, `.golangci.yaml`), and tests; `make test-race`, `make test-coverage`, `make reuse` are also available
+- Tests live in `gencodo_test.go` (single package, inline templates, `t.TempDir()`); the reference templates in `examples/` must keep passing `ValidateTemplates`
+- Every behaviour change needs a test and a CHANGELOG entry under `[Unreleased]`
+- Releases: update CHANGELOG, `make release VERSION=vX.Y.Z`; the `Release` workflow publishes the GitHub release from the CHANGELOG section
 
-**Important**: This is a library - `make build` only verifies compilation, there's no executable.
+## License & Copyright
 
-### Testing Patterns (from `gencodo_test.go`)
-1. **Use `t.TempDir()`** for file operations - automatic cleanup
-2. **Helper functions**: `fileExists()`, `readDirNames()`, `containsAll()`
-3. **Template testing approach**: Define inline template with field accessors like `{{ .CommandName }}|{{ .Short }}`
-4. **Integration tests**: Use actual template files from `examples/` (see `TestReStructuredTextTemplates`, `TestMarkdownTemplates`)
-5. **Example parser tests**: Each test creates `ExampleParser` with specific config, validates `Info`/`Usage` splitting
-
-### Example Template Structure
-- **`examples/cli.rst`**: Index template (lists all command files)
-- **`examples/command.rst`**: Single command template (reStructuredText format)
-- **`examples/cli.md`** & **`examples/command.md`**: Markdown equivalents
-- Templates demonstrate conditional sections: `{{- if .Examples }}...{{- end }}`
-
-## Cobra Integration Specifics
-
-### Flag Handling
-- Only **non-inherited flags** are extracted (use `cmd.NonInheritedFlags()`)
-- Persistent flags from parent commands are intentionally excluded
-- Test this with nested commands: `TestGenDocsNonInheritedFlags`
-
-### Command Filtering
-- `GenDocsTree()` skips commands where `!c.IsAvailableCommand() || c.IsAdditionalHelpTopicCommand()`
-- Root command is never documented directly, only its subcommands
-- Filenames: `<commandpath-with-dashes>.rst` (e.g., `myapp-sub-cmd.rst`)
-
-### Annotations Convention
-```go
-cmd.Annotations = map[string]string{
-    "related": "foo bar,bar,baz", // Comma-separated, trimmed automatically
-}
-```
-
-## Common Patterns
-
-### Adding New Template Data
-1. Add field to anonymous struct in `GenDocs()` data initialization
-2. Update test cases to verify the field works in templates
-3. Document in `README.md` under "Cobra Command Structure"
-
-### Testing New Example Parser Behavior
-- Create `ExampleParser` with specific `CommandPrefixes` and `MinIndent`
-- Test both "happy path" (examples split correctly) and fallback (no prefix/indent match → full text as Usage)
-- Validate multiline scenarios (`\n` preserved in `Usage` field)
-
-## License & Headers
-
-**LGPL-3.0-only** - All Go files must include the 18-line SPDX header (see top of `gencodo.go`). Copyright holder: `Canonical Ltd.`
-
-## When Adding Features
-
-1. **Preserve backward compatibility**: This is a library - breaking API changes impact consumers
-2. **Template flexibility first**: If a feature could be solved with templates + new data fields, prefer that over code logic
-3. **Test with both formats**: Validate changes work with both `.rst` and `.md` example templates
-4. **Update README.md**: Document new fields/functions in "Templates" or "Helper functions" sections
+**LGPL-3.0-only**, REUSE-compliant. Copyright holder: `Canonical Ltd.`
+- Go files: the full LGPL notice header (see top of `gencodo.go`), which includes the SPDX license identifier line
+- All other files: a two-line header with the SPDX license identifier and `Copyright <year> Canonical Ltd.` in the file's comment syntax (`#` for Makefile/YAML, `<!-- -->` for Markdown); copy it from `Makefile` or `README.md`
+- Files that cannot carry a header (`examples/` templates, `go.sum`, `LICENSE`) are covered by `REUSE.toml`
+- `make reuse` / the CI `reuse` job must pass
