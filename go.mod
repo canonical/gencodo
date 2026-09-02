@@ -1,6 +1,6 @@
 // This file is part of gencodo, a library for generating Go template based docs from cobra CLI applications
 //
-// Copyright 2025 Canonical Ltd.
+// Copyright 2025-2026 Canonical Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-only
 //
@@ -18,9 +18,11 @@
 
 module github.com/canonical/gencodo
 
-go 1.15.0
+go 1.23
 
 require (
-	github.com/spf13/cobra v1.9.1
-	github.com/spf13/pflag v1.0.6
+	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 )
+
+require github.com/inconshreveable/mousetrap v1.1.0 // indirect
