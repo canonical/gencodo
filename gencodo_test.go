@@ -1,6 +1,6 @@
 // This file is part of gencodo, a library for generating Go template based docs from cobra CLI applications
 //
-// Copyright 2025 Canonical Ltd.
+// Copyright 2025-2026 Canonical Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-only
 //
@@ -21,11 +21,13 @@ package gencodo
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"text/template"
 
 	"github.com/spf13/cobra"
 )
@@ -125,7 +127,7 @@ func TestGenDocsIndentRepeat(t *testing.T) {
 
 func TestGenDocTree(t *testing.T) {
 	tests := map[string]struct {
-		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string) error
+		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string, ...Option) error
 		fileExtension string
 	}{
 		"TestGenRSTTree":      {GenRSTTree, ".rst"},
@@ -133,7 +135,6 @@ func TestGenDocTree(t *testing.T) {
 	}
 
 	for name, tc := range tests {
-		tc := tc // Capture loop variable for parallel test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -168,7 +169,7 @@ func TestGenDocTree(t *testing.T) {
 
 func TestGenDocTreeNested(t *testing.T) {
 	tests := map[string]struct {
-		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string) error
+		genDocFunc    func(*cobra.Command, string, TemplateInfo, func(string) string, ...Option) error
 		fileExtension string
 	}{
 		"TestGenRSTTree":      {GenRSTTree, ".rst"},
@@ -176,7 +177,6 @@ func TestGenDocTreeNested(t *testing.T) {
 	}
 
 	for name, tc := range tests {
-		tc := tc // Capture loop variable for parallel test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1094,7 +1094,7 @@ func TestGenDocsConcurrent(t *testing.T) {
 
 	// Run multiple GenDocs calls concurrently
 	// Each goroutine creates its own command instance to avoid sharing state
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		go func(iteration int) {
 			defer wg.Done()
 
@@ -1143,7 +1143,7 @@ func TestGenDocsTreeConcurrent(t *testing.T) {
 
 	// Run multiple GenRSTTree calls concurrently to different directories
 	// Each goroutine creates its own command tree to avoid sharing state
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		go func(iteration int) {
 			defer wg.Done()
 
@@ -1180,4 +1180,424 @@ func TestGenDocsTreeConcurrent(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+// --- Options, extended data, helpers, parser configuration, validation ---
+
+func newFlagTestCommand() (*cobra.Command, *cobra.Command) {
+	rootCmd := &cobra.Command{Use: "root", Short: "Root"}
+	rootCmd.PersistentFlags().StringP("config", "c", "", "Config file")
+
+	subCmd := &cobra.Command{
+		Use:   "sub",
+		Short: "Sub command",
+		Run:   func(cmd *cobra.Command, args []string) {},
+	}
+	subCmd.Flags().StringP("name", "n", "default", "Name to use")
+	subCmd.Flags().Bool("force", false, "Force it")
+	subCmd.Flags().String("secret", "", "Hidden flag")
+	subCmd.Flags().String("old", "", "Old flag")
+	subCmd.Flags().String("lazy", "", "Optional value")
+	subCmd.Flags().Lookup("lazy").NoOptDefVal = "auto"
+	_ = subCmd.Flags().MarkHidden("secret")
+	_ = subCmd.Flags().MarkDeprecated("old", "use --name")
+	_ = subCmd.MarkFlagRequired("force")
+	rootCmd.AddCommand(subCmd)
+	return rootCmd, subCmd
+}
+
+func flagsByName(flags []FlagInfo) map[string]FlagInfo {
+	m := map[string]FlagInfo{}
+	for _, f := range flags {
+		m[f.Name] = f
+	}
+	return m
+}
+
+func TestGenDocsFlagInfoFields(t *testing.T) {
+	_, subCmd := newFlagTestCommand()
+	cfg := newConfig(nil)
+	data := cfg.commandData(subCmd)
+	flags := flagsByName(data.Flags)
+
+	if _, ok := flags["secret"]; ok {
+		t.Errorf("hidden flag should be skipped by default: %+v", data.Flags)
+	}
+	name := flags["name"]
+	if name.Shorthand != "n" || name.Type != "string" || name.DefaultValue != "default" {
+		t.Errorf("unexpected name flag: %+v", name)
+	}
+	if !flags["force"].Required || flags["force"].Type != "bool" {
+		t.Errorf("force should be required bool: %+v", flags["force"])
+	}
+	if _, ok := flags["old"]; ok {
+		t.Errorf("deprecated flags are hidden by pflag and must be skipped by default: %+v", data.Flags)
+	}
+	if flags["lazy"].NoOptDefVal != "auto" {
+		t.Errorf("NoOptDefVal not captured: %+v", flags["lazy"])
+	}
+	help := flags["help"]
+	if !help.SetByCobra || help.Shorthand != "h" {
+		t.Errorf("help flag should be marked SetByCobra with shorthand h: %+v", help)
+	}
+	if _, ok := flags["config"]; ok {
+		t.Errorf("inherited flag must not be in Flags: %+v", data.Flags)
+	}
+	inherited := flagsByName(data.InheritedFlags)
+	if inherited["config"].Shorthand != "c" {
+		t.Errorf("inherited config flag missing or wrong: %+v", data.InheritedFlags)
+	}
+}
+
+func TestGenDocsWithHiddenFlags(t *testing.T) {
+	_, subCmd := newFlagTestCommand()
+	cfg := newConfig([]Option{WithHiddenFlags()})
+	flags := flagsByName(cfg.commandData(subCmd).Flags)
+	secret, ok := flags["secret"]
+	if !ok || !secret.Hidden {
+		t.Errorf("hidden flag should be included and marked Hidden: %+v", flags)
+	}
+	old, ok := flags["old"]
+	if !ok || old.Deprecated != "use --name" || !old.Hidden {
+		t.Errorf("deprecated flag should be included with its message: %+v", flags)
+	}
+}
+
+func TestGenDocsWithoutHelpFlag(t *testing.T) {
+	_, subCmd := newFlagTestCommand()
+	cfg := newConfig([]Option{WithoutHelpFlag()})
+	flags := flagsByName(cfg.commandData(subCmd).Flags)
+	if _, ok := flags["help"]; ok {
+		t.Errorf("help flag should be omitted: %+v", flags)
+	}
+	if _, ok := flags["name"]; !ok {
+		t.Errorf("regular flags must remain: %+v", flags)
+	}
+}
+
+func TestGenDocsHelpFlagInheritedWhenRootDefinesIt(t *testing.T) {
+	rootCmd := &cobra.Command{Use: "root"}
+	rootCmd.PersistentFlags().BoolP("help", "h", false, "Print help")
+	subCmd := &cobra.Command{Use: "sub", Run: func(cmd *cobra.Command, args []string) {}}
+	rootCmd.AddCommand(subCmd)
+
+	data := newConfig(nil).commandData(subCmd)
+	if _, ok := flagsByName(data.Flags)["help"]; ok {
+		t.Errorf("application-defined persistent help must not be a local flag: %+v", data.Flags)
+	}
+	help, ok := flagsByName(data.InheritedFlags)["help"]
+	if !ok || help.SetByCobra {
+		t.Errorf("application-defined help must be inherited and not SetByCobra: %+v", data.InheritedFlags)
+	}
+}
+
+func TestGenDocsCommandDataFields(t *testing.T) {
+	rootCmd := &cobra.Command{Use: "app"}
+	groupCmd := &cobra.Command{
+		Use:         "group",
+		Short:       "Group",
+		Aliases:     []string{"g", "grp"},
+		Deprecated:  "use app other",
+		Annotations: map[string]string{"related": "app other", "custom": "value"},
+	}
+	leafCmd := &cobra.Command{Use: "leaf", Short: "Leaf", Run: func(cmd *cobra.Command, args []string) {}}
+	hiddenCmd := &cobra.Command{Use: "hidden", Hidden: true, Run: func(cmd *cobra.Command, args []string) {}}
+	topicCmd := &cobra.Command{Use: "topic", Short: "Help topic"}
+	groupCmd.AddCommand(leafCmd, hiddenCmd, topicCmd)
+	rootCmd.AddCommand(groupCmd)
+
+	cfg := newConfig(nil)
+	cfg.ext = ".md"
+	data := cfg.commandData(groupCmd)
+
+	if data.Parent != "app" || data.File != "app-group.md" || data.Ref != "ref_app_group" {
+		t.Errorf("unexpected identity fields: %+v", data)
+	}
+	if data.Runnable {
+		t.Errorf("group has no Run and must not be Runnable")
+	}
+	if data.Deprecated != "use app other" || len(data.Aliases) != 2 {
+		t.Errorf("Deprecated/Aliases not captured: %+v", data)
+	}
+	if data.Annotations["custom"] != "value" {
+		t.Errorf("Annotations not exposed: %+v", data.Annotations)
+	}
+	if len(data.Subcommands) != 1 || data.Subcommands[0].Name != "app group leaf" ||
+		data.Subcommands[0].File != "app-group-leaf.md" || data.Subcommands[0].Ref != "ref_app_group_leaf" {
+		t.Errorf("Subcommands should list only the documented leaf: %+v", data.Subcommands)
+	}
+	if data.HeadingLen != len("app group") {
+		t.Errorf("HeadingLen = %d", data.HeadingLen)
+	}
+}
+
+func TestGenDocsHeadingLenUnicode(t *testing.T) {
+	cmd := &cobra.Command{Use: "café"}
+	data := newConfig(nil).commandData(cmd)
+	if data.HeadingLen != 4 {
+		t.Errorf("HeadingLen should count runes, got %d", data.HeadingLen)
+	}
+}
+
+func TestGenDocsWithFuncs(t *testing.T) {
+	cmd := &cobra.Command{Use: "app", Short: "hello"}
+	var out bytes.Buffer
+	err := GenDocs(cmd, &out, `{{ .Short | shout }} {{ .Short | upper }}`,
+		WithFuncs(template.FuncMap{
+			"shout": func(s string) string { return s + "!" },
+			"upper": func(s string) string { return "overridden" },
+		}))
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+	if out.String() != "hello! overridden" {
+		t.Errorf("unexpected output %q", out.String())
+	}
+}
+
+func TestGenDocsUnknownFuncFailsAtParse(t *testing.T) {
+	cmd := &cobra.Command{Use: "app"}
+	err := GenDocs(cmd, io.Discard, `{{ .Short | nosuch }}`)
+	if err == nil || !strings.Contains(err.Error(), "nosuch") {
+		t.Errorf("expected parse error naming the function, got %v", err)
+	}
+}
+
+func TestGenDocsWithExampleParser(t *testing.T) {
+	cmd := &cobra.Command{
+		Use:     "app",
+		Example: "Run it:\nPS> app run\n\nOther:\n  indented but not a command",
+	}
+	var out bytes.Buffer
+	tmpl := `{{ range .Examples }}[{{ .Info }}|{{ .Usage }}]{{ end }}`
+	err := GenDocs(cmd, &out, tmpl, WithExampleParser(ExampleParser{
+		CommandPrefixes:        []string{"PS>"},
+		DisableIndentDetection: true,
+	}))
+	if err != nil {
+		t.Fatalf("GenDocs failed: %v", err)
+	}
+	want := "[Run it:|PS> app run][|Other:\n  indented but not a command]"
+	if out.String() != want {
+		t.Errorf("got %q, want %q", out.String(), want)
+	}
+}
+
+func TestTemplateHelpers(t *testing.T) {
+	funcs := builtinFuncs()
+	cases := []struct {
+		tmpl string
+		want string
+	}{
+		{`{{ slug "My App  sub-cmd!" }}`, "my-app-sub-cmd"},
+		{`{{ anchor "ref_my app" }}`, "ref_my-app"},
+		{`{{ titleCase "list all iTems" }}`, "List All ITems"},
+		{`{{ "app sub" | trimPrefix "app " }}`, "sub"},
+		{`{{ "Short." | trimSuffix "." }}`, "Short"},
+		{`{{ "  x  " | trimSpace }}`, "x"},
+		{`{{ "Ab" | lower }}{{ "Ab" | upper }}`, "abAB"},
+		{`{{ .Items | join ", " }}`, "a, b"},
+		{`{{ "a b" | replace " " "_" }}`, "a_b"},
+		{`{{ "a b" | replaceSpaces }}`, "a_b"},
+		{`{{ repeat "-" 3 }}`, "---"},
+		{`{{ "x\ny" | indent 2 }}`, "  x\n  y"},
+	}
+	for _, tc := range cases {
+		tmpl, err := template.New("t").Funcs(funcs).Parse(tc.tmpl)
+		if err != nil {
+			t.Fatalf("%s: parse error: %v", tc.tmpl, err)
+		}
+		var out bytes.Buffer
+		if err := tmpl.Execute(&out, struct{ Items []string }{Items: []string{"a", "b"}}); err != nil {
+			t.Fatalf("%s: exec error: %v", tc.tmpl, err)
+		}
+		if out.String() != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.tmpl, out.String(), tc.want)
+		}
+	}
+}
+
+func TestIndexTemplateHasCommandsAndFuncs(t *testing.T) {
+	tempDir := t.TempDir()
+	rootCmd := &cobra.Command{Use: "app"}
+	rootCmd.AddCommand(&cobra.Command{Use: "one", Short: "First", Run: func(cmd *cobra.Command, args []string) {}})
+	rootCmd.AddCommand(&cobra.Command{Use: "two", Short: "Second", Run: func(cmd *cobra.Command, args []string) {}})
+
+	templates := TemplateInfo{
+		IndexFileName:         "index.md",
+		IndexTemplate:         `{{ .Root }}:{{ range .Commands }} [{{ .Name | slug }}]({{ .File }}) {{ .Short }};{{ end }}`,
+		SingleCommandTemplate: `{{ .CommandName }}`,
+	}
+	if err := GenMarkdownTree(rootCmd, tempDir, templates, nil); err != nil {
+		t.Fatalf("GenMarkdownTree failed: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(tempDir, "index.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "app: [app-one](app-one.md) First; [app-two](app-two.md) Second;"
+	if string(content) != want {
+		t.Errorf("got %q, want %q", content, want)
+	}
+}
+
+func TestGenDocsTreeDryRunWritesNothing(t *testing.T) {
+	tempDir := t.TempDir()
+	outDir := filepath.Join(tempDir, "out")
+	rootCmd := &cobra.Command{Use: "app"}
+	rootCmd.AddCommand(&cobra.Command{Use: "one", Run: func(cmd *cobra.Command, args []string) {}})
+
+	templates := TemplateInfo{IndexFileName: "index.rst", IndexTemplate: "i", SingleCommandTemplate: "c"}
+	if err := GenRSTTree(rootCmd, outDir, templates, nil, WithDryRun()); err != nil {
+		t.Fatalf("dry run failed: %v", err)
+	}
+	if _, err := os.Stat(outDir); !os.IsNotExist(err) {
+		t.Errorf("dry run must not create the output directory (stat err: %v)", err)
+	}
+
+	// Errors are still reported in dry-run mode.
+	bad := TemplateInfo{IndexFileName: "index.rst", IndexTemplate: "i", SingleCommandTemplate: "{{ .Nope }}"}
+	if err := GenRSTTree(rootCmd, outDir, bad, nil, WithDryRun()); err == nil {
+		t.Errorf("dry run should surface template errors")
+	}
+}
+
+func TestGenDocsTreeTemplateErrorLeavesNoPartialFile(t *testing.T) {
+	tempDir := t.TempDir()
+	rootCmd := &cobra.Command{Use: "app"}
+	rootCmd.AddCommand(&cobra.Command{Use: "one", Run: func(cmd *cobra.Command, args []string) {}})
+
+	templates := TemplateInfo{
+		IndexFileName:         "index.md",
+		IndexTemplate:         "i",
+		SingleCommandTemplate: "header {{ .Missing }}",
+	}
+	err := GenMarkdownTree(rootCmd, tempDir, templates, func(string) string { return "prepended" })
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if names := readDirNames(t, tempDir); len(names) != 0 {
+		t.Errorf("no files should be written on error, found %v", names)
+	}
+}
+
+func TestGenDocsTreeNilFilePrepender(t *testing.T) {
+	tempDir := t.TempDir()
+	rootCmd := &cobra.Command{Use: "app"}
+	rootCmd.AddCommand(&cobra.Command{Use: "one", Run: func(cmd *cobra.Command, args []string) {}})
+	templates := TemplateInfo{IndexFileName: "index.md", IndexTemplate: "i", SingleCommandTemplate: "c"}
+	if err := GenMarkdownTree(rootCmd, tempDir, templates, nil); err != nil {
+		t.Fatalf("nil filePrepender should be accepted: %v", err)
+	}
+	fileExists(t, filepath.Join(tempDir, "app-one.md"))
+}
+
+func TestGenDocsTreeInvalidCommandTemplateFailsBeforeWriting(t *testing.T) {
+	tempDir := t.TempDir()
+	outDir := filepath.Join(tempDir, "out")
+	rootCmd := &cobra.Command{Use: "app"}
+	rootCmd.AddCommand(&cobra.Command{Use: "one", Run: func(cmd *cobra.Command, args []string) {}})
+	templates := TemplateInfo{IndexFileName: "index.md", IndexTemplate: "i", SingleCommandTemplate: "{{ if }}"}
+	if err := GenMarkdownTree(rootCmd, outDir, templates, nil); err == nil {
+		t.Fatal("expected parse error")
+	}
+	if _, err := os.Stat(outDir); !os.IsNotExist(err) {
+		t.Errorf("output directory must not be created when templates fail to parse")
+	}
+}
+
+func TestExampleParserCRLF(t *testing.T) {
+	parser := ExampleParser{}
+	examples := parser.Parse("Info:\r\n  $ cmd one\r\n\r\nMore:\r\n  $ cmd two")
+	if len(examples) != 2 {
+		t.Fatalf("expected 2 examples, got %d: %+v", len(examples), examples)
+	}
+	if examples[0].Info != "Info:" || examples[0].Usage != "  $ cmd one" {
+		t.Errorf("unexpected first example: %+v", examples[0])
+	}
+}
+
+func TestExampleParserTabIndent(t *testing.T) {
+	parser := ExampleParser{CommandPrefixes: []string{"%"}}
+	examples := parser.Parse("Info:\n\tcmd one")
+	if len(examples) != 1 || examples[0].Info != "Info:" || examples[0].Usage != "\tcmd one" {
+		t.Errorf("tab-indented line should be a command: %+v", examples)
+	}
+}
+
+func TestExampleParserCustomBlockSeparator(t *testing.T) {
+	parser := ExampleParser{BlockSeparator: "\n---\n"}
+	examples := parser.Parse("A:\n  $ a\n\nstill a\n---\nB:\n  $ b")
+	if len(examples) != 2 {
+		t.Fatalf("expected 2 examples, got %d: %+v", len(examples), examples)
+	}
+	if examples[0].Usage != "  $ a\n\nstill a" || examples[1].Info != "B:" {
+		t.Errorf("unexpected split: %+v", examples)
+	}
+}
+
+func TestExampleParserDisableIndentDetection(t *testing.T) {
+	parser := ExampleParser{DisableIndentDetection: true}
+	examples := parser.Parse("Info:\n  not a command\n  $ cmd")
+	if len(examples) != 1 {
+		t.Fatalf("expected 1 example, got %+v", examples)
+	}
+	if examples[0].Info != "Info:\n  not a command" || examples[0].Usage != "  $ cmd" {
+		t.Errorf("indented prose must stay in Info when indent detection is off: %+v", examples[0])
+	}
+}
+
+func TestExampleParserMinIndentZeroUsesDefault(t *testing.T) {
+	parser := ExampleParser{MinIndent: 0, CommandPrefixes: []string{"%"}}
+	examples := parser.Parse("Info:\n  cmd")
+	if len(examples) != 1 || examples[0].Usage != "  cmd" {
+		t.Errorf("MinIndent 0 should fall back to the default of 2: %+v", examples)
+	}
+}
+
+func TestValidateTemplates(t *testing.T) {
+	good := TemplateInfo{
+		IndexFileName: "index.md",
+		IndexTemplate: `{{ .Root }}{{ range .Commands }}{{ .Name | slug }}{{ end }}{{ range .Files }}{{ . }}{{ end }}`,
+		SingleCommandTemplate: `{{ .CommandName }}{{ if .Deprecated }}D{{ else }}-{{ end }}` +
+			`{{ range .Flags }}{{ .Shorthand }}{{ end }}{{ range .Subcommands }}{{ .Ref }}{{ end }}{{ index .Annotations "related" }}`,
+	}
+	if err := ValidateTemplates(good); err != nil {
+		t.Errorf("valid templates rejected: %v", err)
+	}
+
+	cases := map[string]TemplateInfo{
+		"unknown field in command": {IndexFileName: "i", IndexTemplate: "i", SingleCommandTemplate: "{{ .Nope }}"},
+		"unknown field in index":   {IndexFileName: "i", IndexTemplate: "{{ .Nope }}", SingleCommandTemplate: "c"},
+		"unknown func":             {IndexFileName: "i", IndexTemplate: "i", SingleCommandTemplate: "{{ nosuch . }}"},
+		"else branch":              {IndexFileName: "i", IndexTemplate: "i", SingleCommandTemplate: "{{ if .Deprecated }}ok{{ else }}{{ .Nope }}{{ end }}"},
+		"empty":                    {},
+	}
+	for name, tc := range cases {
+		if err := ValidateTemplates(tc); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+
+	withFunc := TemplateInfo{IndexFileName: "i", IndexTemplate: "i", SingleCommandTemplate: "{{ custom .Short }}"}
+	if err := ValidateTemplates(withFunc, WithFuncs(template.FuncMap{"custom": strings.ToUpper})); err != nil {
+		t.Errorf("WithFuncs should be honoured: %v", err)
+	}
+}
+
+func TestValidateTemplatesAcceptsExamples(t *testing.T) {
+	for _, pair := range [][2]string{{"cli.md", "command.md"}, {"cli.rst", "command.rst"}} {
+		index, err := os.ReadFile(filepath.Join("examples", pair[0]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		command, err := os.ReadFile(filepath.Join("examples", pair[1]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		templates := TemplateInfo{IndexFileName: pair[0], IndexTemplate: string(index), SingleCommandTemplate: string(command)}
+		if err := ValidateTemplates(templates); err != nil {
+			t.Errorf("%v: %v", pair, err)
+		}
+	}
 }
