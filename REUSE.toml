@@ -1,0 +1,16 @@
+version = 1
+
+# Go template files: a comment header would be copied into every generated
+# document, so their license information lives here instead.
+[[annotations]]
+path = ["examples/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 Canonical Ltd."
+SPDX-License-Identifier = "LGPL-3.0-only"
+
+# Generated or verbatim files that must not be edited.
+[[annotations]]
+path = ["go.sum", "LICENSE"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 Canonical Ltd."
+SPDX-License-Identifier = "LGPL-3.0-only"
